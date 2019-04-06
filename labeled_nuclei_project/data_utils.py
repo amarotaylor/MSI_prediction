@@ -76,4 +76,4 @@ class COAD_dataset(Dataset):
     def __len__(self):
         return len(self.labels)
     def __getitem__(self, idx):
-        return self.data[idx],self.labels[idx]
+        return self.data[idx].view(-1,3,27,27),self.labels[idx]
