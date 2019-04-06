@@ -37,3 +37,37 @@ class ConvNet(nn.Module):
         embed = embed.view(x.shape[0],-1)
         y = self.fc(embed)
         return y
+    
+    
+class Attention(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, gated=True):
+        super(Attention, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.gated = gated
+        self.V = nn.Linear(input_size, hidden_size)
+        self.U = nn.Linear(input_size, hidden_size)
+        self.w = nn.Linear(hidden_size, output_size)
+        self.sigm = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+        self.sm = nn.Softmax(dim=0)
+        
+    def forward(self, h):
+        if self.gated == True:
+            a = self.sm(self.w(self.tanh(self.V(h)) * self.sigm(self.U(h))))
+        else:
+            a = self.sm(self.w(self.tanh(self.V(h))))
+        return a
+    
+class pool(nn.Module):
+    def __init__(self,attn = None):
+        super(pool,self).__init__()
+        self.attn = attn
+    def forward(self,x):
+        if self.attn == None:
+            return torch.mean(x,0)
+        else:
+            a = attn(x)
+            v = torch.transpose(a, dim0=0, dim1=1).matmul(x)
+            return v.squeeze(0)
