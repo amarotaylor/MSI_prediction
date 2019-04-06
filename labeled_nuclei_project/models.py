@@ -60,6 +60,7 @@ class Attention(nn.Module):
             a = self.sm(self.w(self.tanh(self.V(h))))
         return a
     
+    
 class pool(nn.Module):
     def __init__(self,attn = None):
         super(pool,self).__init__()
@@ -68,6 +69,6 @@ class pool(nn.Module):
         if self.attn == None:
             return torch.mean(x,0)
         else:
-            a = attn(x)
+            a = self.attn(x)
             v = torch.transpose(a, dim0=0, dim1=1).matmul(x)
             return v.squeeze(0)
