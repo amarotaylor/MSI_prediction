@@ -63,7 +63,7 @@ class COAD_dataset(Dataset):
     Slide level labels for prediction : self.labels
     Slide examples : self.data
     Slide cell level labels : self.cell_labels
-    Slide cell level x,y coords : self.locs
+    Slide cell level x,y coords : self.cell_locs
     '''
     def __init__(self,pickle_file):
         with open(pickle_file, 'rb') as f: 
