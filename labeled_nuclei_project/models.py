@@ -72,3 +72,44 @@ class pool(nn.Module):
             a = self.attn(x)
             v = torch.transpose(a, dim0=0, dim1=1).matmul(x)
             return v.squeeze(0)
+        
+
+class Generator(nn.Module):
+    def __init__(self, n_conv_layers, kernel_size, n_conv_filters, hidden_size, n_rnn_layers, dropout=0.5):
+        super(Generator, self).__init__()
+        self.n_conv_layers = n_conv_layers
+        self.kernel_size = kernel_size
+        self.n_conv_filters = n_conv_filters
+        self.hidden_size = hidden_size
+        self.n_rnn_layers = n_rnn_layers
+        self.conv_layers = []
+        self.m = nn.MaxPool2d(2, stride=2)
+        self.relu = nn.ReLU()
+         
+        in_channels = 3        
+        for layer in range(self.n_conv_layers):
+            self.conv_layers.append(nn.Conv2d(in_channels, self.n_conv_filters[layer], self.kernel_size[layer]))
+            self.conv_layers.append(self.relu)
+            self.conv_layers.append(self.m)
+            in_channels = self.n_conv_filters[layer]
+        self.conv = nn.Sequential(*self.conv_layers)
+        in_channels = in_channels * 25
+
+        self.lstm = nn.LSTM(in_channels, self.hidden_size, self.n_rnn_layers, batch_first=True, 
+                            dropout=dropout, bidirectional=True) 
+        in_channels = hidden_size * 2
+        self.classification_layer = nn.Linear(in_channels, 2)
+        
+    def forward(self, x):
+        embed = self.conv(x)
+        embed = embed.view(1,x.shape[0],-1)
+        self.lstm.flatten_parameters()
+        output, hidden = self.lstm(embed)
+        y = self.classification_layer(output)
+        return y
+    
+    def zero_grad(self):
+        """Sets gradients of all model parameters to zero."""
+        for p in self.parameters():
+            if p.grad is not None:
+                p.grad.data.zero_()
