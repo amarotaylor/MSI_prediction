@@ -93,7 +93,7 @@ def instance_validation_loop(e, valid_loader, net, criterion, pool_fn):
     return total_loss
 
 
-def sampler(slide, gen, num_samples):
+def sampler_reinforce(slide, gen, num_samples):
     zis = []
     grads = []
     all_grads = []
@@ -121,7 +121,7 @@ def sampler(slide, gen, num_samples):
     return zis, grads, all_grads
 
 
-def rationales_training_loop(e, train_loader, gen, enc, pool_fn, num_samples, lamb1, lamb2, xent, learning_rate, optimizer):
+def rationales_training_loop_reinforce(e, train_loader, gen, enc, pool_fn, num_samples, lamb1, lamb2, xent, learning_rate, optimizer):
     gen.train()
     enc.train()
     
