@@ -3,9 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+
 lsm = nn.LogSoftmax(dim=2)
 
-def embedding_training_loop(e, train_loader, net, criterion, optimizer,pool_fn):
+
+def embedding_training_loop(e, train_loader, net, criterion, optimizer, pool_fn):
     net.train()
     total_loss = 0
     
@@ -24,7 +26,7 @@ def embedding_training_loop(e, train_loader, net, criterion, optimizer,pool_fn):
     print('Epoch: {0}, Train NLL: {1:0.4f}'.format(e, total_loss))
     
 
-def embedding_validation_loop(e, valid_loader, net, criterion,pool_fn):
+def embedding_validation_loop(e, valid_loader, net, criterion, pool_fn):
     net.eval()
     total_loss = 0
     labels = []
@@ -48,7 +50,7 @@ def embedding_validation_loop(e, valid_loader, net, criterion,pool_fn):
     return total_loss
 
 
-def instance_training_loop(e, train_loader, net, criterion, optimizer,pool_fn):
+def instance_training_loop(e, train_loader, net, criterion, optimizer, pool_fn):
     net.train()
     total_loss = 0
     
@@ -67,7 +69,7 @@ def instance_training_loop(e, train_loader, net, criterion, optimizer,pool_fn):
     print('Epoch: {0}, Train NLL: {1:0.4f}'.format(e, total_loss))
     
 
-def instance_validation_loop(e, valid_loader, net, criterion,pool_fn):
+def instance_validation_loop(e, valid_loader, net, criterion, pool_fn):
     net.eval()
     total_loss = 0
     labels = []
@@ -119,12 +121,12 @@ def sampler(slide, gen, num_samples):
     return zis, grads, all_grads
 
 
-def rationales_training(e, train_loader, gen, enc, pool_fn, num_samples, lamb1, lamb2, xent,
-                        learning_rate, optimizer):
+def rationales_training_loop(e, train_loader, gen, enc, pool_fn, num_samples, lamb1, lamb2, xent, learning_rate, optimizer):
     gen.train()
     enc.train()
     
     total_loss = 0
+    
     for slide,label in train_loader:
         slide,label = slide.squeeze(0).cuda(),label.cuda()
         zis, grads, all_grads = sampler(slide, gen, num_samples)
@@ -158,6 +160,40 @@ def rationales_training(e, train_loader, gen, enc, pool_fn, num_samples, lamb1, 
         optimizer.step()
         optimizer.zero_grad()
         
-        total_loss += loss.detach().cpu().numpy()
+        total_loss += loss.detach().cpu().numpy() / float(num_samples)
 
     print('Epoch: {0}, Train Loss: {1:0.4f}'.format(e, total_loss))
+    
+    
+def rationales_validation_loop(e, valid_loader, gen, enc, pool_fn, num_samples, lamb1, lamb2, xent):
+    gen.eval()
+    enc.eval()
+    
+    total_loss = 0
+    labels = []
+    preds = []
+
+    for slide,label in valid_loader:
+        slide, label = slide.squeeze(0).cuda(), label.cuda()
+
+        prez = gen(slide)
+        z = torch.argmax(prez, dim=2).squeeze(0)
+        rationale = slide[z==1,:,:,:]
+
+        output = enc(rationale)
+        pool = pool_fn(output)
+        y_hat = enc.classification_layer(pool)
+
+        znorm = torch.norm(z.float(), p=1)
+        zdist = torch.sum(torch.abs(z[:-1] - z[1:]))
+        omega = (lamb1 * znorm) + (lamb2 * zdist)
+        loss = xent(y_hat.unsqueeze(0), label) + omega
+
+        total_loss += loss.detach().cpu().numpy()
+        labels.extend(label.float().cpu().numpy())
+        preds.append(torch.argmax(y_hat).float().detach().cpu().numpy())
+
+    acc = np.mean(np.array(labels) == np.array(preds))
+    print('Epoch: {0}, Val Loss: {1:0.4f}, Val Acc: {2:0.4f}'.format(e, total_loss, acc))
+
+    return total_loss
