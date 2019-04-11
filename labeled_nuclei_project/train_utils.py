@@ -212,23 +212,24 @@ def gumbel_softmax_sample(logits, temperature):
 
 
 def gumbel_softmax(logits, temperature, hard=False):
-    """Sample from the Gumbel-Softmax distribution and optionally discretize.
-  Args:
-    logits: [batch_size, n_class] unnormalized log-probs
-    temperature: non-negative scalar
-    hard: if True, take argmax, but differentiate w.r.t. soft sample y
-  Returns:
-    [batch_size, n_class] sample from the Gumbel-Softmax distribution.
-    If hard=True, then the returned sample will be one-hot, otherwise it will
-    be a probabilitiy distribution that sums to 1 across classes
-  """
+    """
+    Sample from the Gumbel-Softmax distribution and optionally discretize.
+    Args:
+        logits: [batch_size, n_class] unnormalized log-probs
+        temperature: non-negative scalar
+        hard: if True, take argmax, but differentiate w.r.t. soft sample y
+    Returns:
+        [batch_size, n_class] sample from the Gumbel-Softmax distribution.
+        If hard=True, then the returned sample will be one-hot, otherwise it will
+        be a probabilitiy distribution that sums to 1 across classes
+    """
     y = gumbel_softmax_sample(logits, temperature)
     if hard:
         y = torch.argmax(logits,dim=1)
     return y
 
 
-def rationales_training_loop_GS(e, train_loader, gen, enc, pool_fn, lamb1, lamb2, xent, learning_rate, optimizer):
+def rationales_training_loop_GS(e, train_loader, gen, enc, pool_fn, lamb1, lamb2, xent, learning_rate, optimizer, temp):
     gen.train()
     enc.train()
     
@@ -243,7 +244,7 @@ def rationales_training_loop_GS(e, train_loader, gen, enc, pool_fn, lamb1, lamb2
         # generate tile rationales
         preds = gen(slide)
         logits = lsm(preds).squeeze(0)
-        sample = gumbel_softmax(logits, temperature=10.0)
+        sample = gumbel_softmax(logits, temperature=temp)
         rationale = slide.view(slide.shape[1],slide.shape[2],slide.shape[3],-1) * sample[:,1]
         rationale = rationale.view(-1,slide.shape[1],slide.shape[2],slide.shape[3])
         
@@ -273,7 +274,7 @@ def rationales_training_loop_GS(e, train_loader, gen, enc, pool_fn, lamb1, lamb2
                                                                                                       total_omega, frac_tiles))
     
 
-def rationales_validation_loop_GS(e, valid_loader, gen, enc, pool_fn, xent):
+def rationales_validation_loop_GS(e, valid_loader, gen, enc, pool_fn, xent, scheduler):
     gen.eval()
     enc.eval()
 
@@ -305,6 +306,9 @@ def rationales_validation_loop_GS(e, valid_loader, gen, enc, pool_fn, xent):
             labels.extend(label.float().cpu().numpy())
             preds.append(torch.argmax(y_hat).float().detach().cpu().numpy())
 
+    if e > 50:
+        scheduler.step(total_loss)
+        
     acc = np.mean(np.array(labels) == np.array(preds))
     frac_tiles = rat_tiles / total_tiles
     print('Epoch: {0}, Val Loss: {1:0.4f}, Val Acc: {2:0.4f}, Fraction of Tiles: {3:0.4f}'.format(e, total_loss, acc,
