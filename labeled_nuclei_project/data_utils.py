@@ -65,15 +65,30 @@ class COAD_dataset(Dataset):
     Slide cell level labels : self.cell_labels
     Slide cell level x,y coords : self.cell_locs
     '''
-    def __init__(self,pickle_file):
+    def __init__(self,pickle_file, return_cell_positions = False):
         with open(pickle_file, 'rb') as f: 
             all_slides, all_slide_tile_classes, all_slide_locs,all_slide_labels = pickle.load(f)
         self.labels = all_slide_labels
         self.data = all_slides
         self.cell_labels = all_slide_tile_classes
         self.cell_locs = all_slide_locs
+        self.return_cell_positions = return_cell_positions
+        if self.return_cell_positions:
+            self.neighborhoods = list()
+            for slide in range(len(self.data)):
+                neighbors = list()
+                x_y_arr = np.array(self.cell_locs[slide])
+                for idx,xy in enumerate(x_y_arr):
+                    neighbors.append(np.argsort(np.sum((xy - x_y_arr)**2,1))[1:5])
+                self.neighborhoods.append(np.stack(neighbors))
         
     def __len__(self):
         return len(self.labels)
     def __getitem__(self, idx):
-        return self.data[idx].view(-1,3,27,27),self.labels[idx]
+        if self.return_cell_positions:
+            return self.data[idx].view(-1,3,27,27),self.labels[idx],np.array(self.neighborhoods[idx])
+        else:
+            return self.data[idx].view(-1,3,27,27),self.labels[idx]
+    
+    
+
