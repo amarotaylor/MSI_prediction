@@ -313,3 +313,4 @@ def rationales_validation_loop_GS(e, valid_loader, gen, enc, pool_fn, xent, sche
     frac_tiles = rat_tiles / total_tiles
     print('Epoch: {0}, Val Loss: {1:0.4f}, Val Acc: {2:0.4f}, Fraction of Tiles: {3:0.4f}'.format(e, total_loss, acc,
                                                                                                   frac_tiles))
+    return frac_tiles
