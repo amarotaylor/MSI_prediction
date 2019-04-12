@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+
 class ConvNet(nn.Module):
     def __init__(self, n_conv_layers, n_fc_layers, kernel_size, n_conv_filters, hidden_size, dropout=0.5):
         super(ConvNet, self).__init__()
@@ -113,15 +114,14 @@ class Generator(nn.Module):
         """Sets gradients of all model parameters to zero."""
         for p in self.parameters():
             if p.grad is not None:
-                p.grad.data.zero_()
-                
-                
+                p.grad.data.zero_()  
                 
                 
 def update_tile_shape(H_in, W_in, kernel_size, dilation = 1., padding = 0., stride = 1.):
     H_out = (H_in + 2. * padding - dilation * (kernel_size-1) -1)/stride + 1
     W_out = (W_in + 2. * padding - dilation * (kernel_size-1) -1)/stride + 1
     return int(np.floor(H_out)),int(np.floor(W_out))
+
 
 class Neighborhood_Generator(nn.Module):
     def __init__(self, n_conv_layers, n_fc_layers, kernel_size, n_conv_filters, hidden_size, dropout=0.5,
@@ -168,7 +168,6 @@ class Neighborhood_Generator(nn.Module):
         
     def forward(self, x, neighbors):
         embed = self.conv(x)
-        
         embed = embed.view(x.shape[0],-1)
         e_neighbors = [torch.index_select(embed,0,n) for n in neighbors]
         embed_n = torch.stack([torch.cat([e.unsqueeze(0),n],0).view(-1) for e,n in zip(embed,e_neighbors)])

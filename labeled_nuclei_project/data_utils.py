@@ -55,8 +55,49 @@ def read_slide(epi_mat,fibro_mat,inf_mat,other_mat,bmp_im):
     slide = torch.stack(slide_tiles)
     return slide,slide_tile_class,slide_locs
 
+def make_image_from_slide(valid,idx):
+    fig,ax = plt.subplots(1,1)
+    image = np.zeros([500,500,3])
+    locs = valid.cell_locs[idx]
+    slide = valid.data[idx].squeeze()
+    for i,tile in enumerate(slide):    
+        image[locs[i][1]-13:locs[i][1]+14,locs[i][0]-13:locs[i][0]+14] = tile.numpy().reshape(27,27,3)#*255.0*((a_np[i]-a_min)/(a_max - a_min))
 
+    ax.imshow(image)
+    fig.set_dpi(150)
 
+def frame_image(img, frame_width):
+    b = frame_width # border size in pixel
+    ny, nx = img.shape[0], img.shape[1] # resolution / number of pixels in x and y
+    if img.ndim == 3: # rgb or rgba array
+        framed_img = np.zeros((ny, nx, img.shape[2]))
+        framed_img[:,:,0]+=1
+    elif img.ndim == 2: # grayscale image
+        framed_img = np.zeros((b+ny+b, b+nx+b))
+    framed_img[b:-b, b:-b] = img[b:-b, b:-b]
+    return framed_img
+
+def draw_image_with_rationale(idx,valid,gen):
+
+    fig,ax = plt.subplots(1,1)
+    image = np.zeros([500,500,3])
+    locs = valid.cell_locs[idx]
+    slide = valid.data[idx].squeeze().view(-1,3,27,27).cuda()
+    rationale = gen(slide)
+    keep = torch.argmax(rationale,2).squeeze()
+    slide = slide.cpu().view(-1,27,27,3).numpy()
+    for i,tile in enumerate(slide):
+        if keep[i] == 0:
+            image[locs[i][1]-13:locs[i][1]+14,locs[i][0]-13:locs[i][0]+14] = tile#*255.0*((a_np[i]-a_min)/(a_max - a_min))
+    for i,tile in enumerate(slide):
+        if keep[i] == 1:
+            tile = frame_image(tile,3)
+            image[locs[i][1]-13:locs[i][1]+14,locs[i][0]-13:locs[i][0]+14] = tile#*255.0*((a_np[i]-a_min)/(a_max - a_min))
+
+    ax.imshow(image)
+    fig.set_dpi(150)
+    
+    
 class COAD_dataset(Dataset):
     '''
     Torch dataset for colorectal images.

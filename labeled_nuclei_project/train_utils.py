@@ -279,7 +279,7 @@ def rationales_validation_loop_GS(e, valid_loader, gen, enc, pool_fn, xent, sche
     enc.eval()
 
     rat_tiles = 0
-    total_tiles = 1
+    total_tiles = 0
     total_loss = 0
     labels = []
     preds = []
@@ -310,7 +310,48 @@ def rationales_validation_loop_GS(e, valid_loader, gen, enc, pool_fn, xent, sche
         scheduler.step(total_loss)
         
     acc = np.mean(np.array(labels) == np.array(preds))
-    frac_tiles = rat_tiles / total_tiles
-    print('Epoch: {0}, Val Loss: {1:0.4f}, Val Acc: {2:0.4f}, Fraction of Tiles: {3:0.4f}'.format(e, total_loss, acc,
-                                                                                                  frac_tiles))
-    return frac_tiles
+    frac_tiles = rat_tiles / total_tiles if total_tiles else 0
+    print('Epoch: {0}, Val Loss: {1:0.4f}, Val Acc: {2:0.4f}, Fraction of Tiles: {3:0.4f}, Total Tiles: {4}'.format(e, total_loss, acc, frac_tiles, total_tiles))
+    return total_loss, frac_tiles, total_tiles
+
+
+
+def rationales_evaluation_loop_GS(e, valid_loader, gen, enc, pool_fn, xent, scheduler):
+    gen.eval()
+    enc.eval()
+
+    rat_tiles = 0
+    total_tiles = 0
+    total_loss = 0
+    labels = []
+    preds = []
+
+    for slide,label in valid_loader:
+        slide, label = slide.squeeze(0).cuda(), label.cuda()
+
+        prez = gen(slide)
+        z = torch.argmax(prez, dim=2).squeeze(0)
+        rationale = slide[z==1,:,:,:]
+        znorm = torch.sum(z.float())
+
+        if znorm > 0:
+            output = enc(rationale)
+            pool = pool_fn(output)
+            y_hat = enc.classification_layer(pool)
+
+            loss = xent(y_hat.unsqueeze(0), label)
+            total_loss += loss.detach().cpu().numpy()
+
+            rat_tiles += znorm
+            total_tiles += float(z.shape[0])
+
+            labels.extend(label.float().cpu().numpy())
+            preds.append(torch.argmax(y_hat).float().detach().cpu().numpy())
+
+    if e > 50:
+        scheduler.step(total_loss)
+        
+    acc = np.mean(np.array(labels) == np.array(preds))
+    frac_tiles = rat_tiles / total_tiles if total_tiles else 0
+    print('Epoch: {0}, Val Loss: {1:0.4f}, Val Acc: {2:0.4f}, Fraction of Tiles: {3:0.4f}, Total Tiles: {4}'.format(e, total_loss, acc, frac_tiles, total_tiles))
+    return labels, preds
