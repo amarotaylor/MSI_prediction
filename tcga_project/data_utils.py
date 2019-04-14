@@ -62,6 +62,5 @@ class TCGADataset(Dataset):
         
         slide = torch.stack(slide_tiles)
         label = self.sample_labels[idx]
-        sample = {'slide': slide, 'label': label}
 
-        return sample
+        return slide, label

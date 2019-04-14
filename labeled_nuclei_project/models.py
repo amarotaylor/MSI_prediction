@@ -138,7 +138,7 @@ class Neighborhood_Generator(nn.Module):
         self.n = nn.Dropout(dropout)
         self.m = nn.MaxPool2d(2, stride=2)
         self.relu = nn.ReLU()
-        self.H_in,self.W_in  = H_in,W_in
+        self.H_in, self.W_in = H_in, W_in
         
         # perform the encoding 
         in_channels = 3        
@@ -147,9 +147,9 @@ class Neighborhood_Generator(nn.Module):
             self.conv_layers.append(self.relu)
             self.conv_layers.append(self.m)
             # convolution
-            self.H_in,self.W_in = update_tile_shape(self.H_in, self.W_in, kernel_size[layer])
+            self.H_in, self.W_in = update_tile_shape(self.H_in, self.W_in, kernel_size[layer])
             # max pooling
-            self.H_in,self.W_in = update_tile_shape(self.H_in, self.W_in, 2, stride = 2)
+            self.H_in, self.W_in = update_tile_shape(self.H_in, self.W_in, 2, stride = 2)
             in_channels = self.n_conv_filters[layer]
         
         # compute concatenation size
