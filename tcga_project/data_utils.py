@@ -1,7 +1,7 @@
 import os
 import sys
 import torch
-#import accimage
+import accimage
 from PIL import Image
 from imageio import imread
 from torch.utils.data import Dataset, DataLoader
@@ -50,23 +50,17 @@ class TCGADataset(Dataset):
         img_dir = self.root_dir + self.sample_names[idx] + '.svs/' + self.sample_names[idx] + '_files/5.0'
         imgs = os.listdir(img_dir)
         
-        #total = 0
         for im in imgs:
             path = img_dir + '/' + im
             image = self.loader(path)
-            #image = imread(path)
 
             if self.transform is not None:
-                #print(image.mode)
                 image = self.transform(image)
                 
             if image.shape[1] == 256 and image.shape[2] == 256:
                 slide_tiles.append(image)
-                #total += sys.getsizeof(image)
         
         slide = torch.stack(slide_tiles)
-        #print(total/1e6)
-        #slide = slide_tiles
         label = self.sample_labels[idx]
         sample = {'slide': slide, 'label': label}
 
