@@ -31,10 +31,11 @@ def process_slide(current_img,imgs,i):
         slide_level_label = 1
     return slide_level_label,epi_mat,fibro_mat,inf_mat,other_mat,bmp_im
 
+
 def read_slide(epi_mat,fibro_mat,inf_mat,other_mat,bmp_im):
     '''
-    read a slide and return 3d array of tiles, list 
-    of classes for each tile and tile coordinates
+    Read a slide and return 3d array of tiles, list 
+    of classes for each tile, and tile coordinates
     '''
     slide_tiles = []
     slide_tile_class = []
@@ -55,6 +56,7 @@ def read_slide(epi_mat,fibro_mat,inf_mat,other_mat,bmp_im):
     slide = torch.stack(slide_tiles)
     return slide,slide_tile_class,slide_locs
 
+
 def make_image_from_slide(valid,idx):
     fig,ax = plt.subplots(1,1)
     image = np.zeros([500,500,3])
@@ -66,6 +68,7 @@ def make_image_from_slide(valid,idx):
     ax.imshow(image)
     fig.set_dpi(150)
 
+    
 def frame_image(img, frame_width):
     b = frame_width # border size in pixel
     ny, nx = img.shape[0], img.shape[1] # resolution / number of pixels in x and y
@@ -77,8 +80,8 @@ def frame_image(img, frame_width):
     framed_img[b:-b, b:-b] = img[b:-b, b:-b]
     return framed_img
 
-def draw_image_with_rationale(idx,valid,gen):
 
+def draw_image_with_rationale(idx,valid,gen):
     fig,ax = plt.subplots(1,1)
     image = np.zeros([500,500,3])
     locs = valid.cell_locs[idx]
@@ -86,9 +89,11 @@ def draw_image_with_rationale(idx,valid,gen):
     rationale = gen(slide)
     keep = torch.argmax(rationale,2).squeeze()
     slide = slide.cpu().view(-1,27,27,3).numpy()
+    
     for i,tile in enumerate(slide):
         if keep[i] == 0:
             image[locs[i][1]-13:locs[i][1]+14,locs[i][0]-13:locs[i][0]+14] = tile#*255.0*((a_np[i]-a_min)/(a_max - a_min))
+            
     for i,tile in enumerate(slide):
         if keep[i] == 1:
             tile = frame_image(tile,3)
@@ -106,9 +111,9 @@ class COAD_dataset(Dataset):
     Slide cell level labels : self.cell_labels
     Slide cell level x,y coords : self.cell_locs
     '''
-    def __init__(self,pickle_file, return_cell_positions = False):
+    def __init__(self, pickle_file, return_cell_positions = False):
         with open(pickle_file, 'rb') as f: 
-            all_slides, all_slide_tile_classes, all_slide_locs,all_slide_labels = pickle.load(f)
+            all_slides, all_slide_tile_classes, all_slide_locs, all_slide_labels = pickle.load(f)
         self.labels = all_slide_labels
         self.data = all_slides
         self.cell_labels = all_slide_tile_classes
@@ -125,11 +130,9 @@ class COAD_dataset(Dataset):
         
     def __len__(self):
         return len(self.labels)
+    
     def __getitem__(self, idx):
         if self.return_cell_positions:
             return self.data[idx].view(-1,3,27,27),self.labels[idx],np.array(self.neighborhoods[idx])
         else:
             return self.data[idx].view(-1,3,27,27),self.labels[idx]
-    
-    
-
