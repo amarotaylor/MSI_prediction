@@ -66,7 +66,7 @@ class TCGADataset(Dataset):
 
             if self.transform is not None:
                 image = self.transform(image)
-                image = image/255.0
+#                image = image#/255.0
             if image.shape[1] == 256 and image.shape[2] == 256:
                 slide_tiles.append(image)
         
