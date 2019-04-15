@@ -58,7 +58,7 @@ class TCGADataset(Dataset):
         img_dir = self.root_dir + self.sample_names[idx] + '.svs/' + self.sample_names[idx] + '_files/5.0'
         imgs = os.listdir(img_dir)
         num_tiles = len(imgs)
-        imgs = np.array(imgs)[np.random.permutation(num_tiles)[:max_tiles]]
+        imgs = np.array(imgs)[torch.randperm(num_tiles)[:max_tiles]]
         
         for im in imgs:
             path = img_dir + '/' + im
@@ -66,7 +66,7 @@ class TCGADataset(Dataset):
 
             if self.transform is not None:
                 image = self.transform(image)
-
+                image = image/255.0
             if image.shape[1] == 256 and image.shape[2] == 256:
                 slide_tiles.append(image)
         
