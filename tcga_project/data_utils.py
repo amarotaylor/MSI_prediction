@@ -74,3 +74,54 @@ class TCGADataset(Dataset):
         label = self.sample_labels[idx]
 
         return slide, label
+    
+def pad_tensor_up_to(x,H,W,channels_last=True):
+    if channels_last==False:
+        p1d = (0,W - x.shape[2],0,H - x.shape[1],0,0)
+    
+    else:
+        p1d = (0,0,0,W - x.shape[1],0,H - x.shape[0])
+    
+    return F.pad(x, p1d, "constant", 0)     
+    
+    
+class TCGADataset_tiles(Dataset):
+    """TCGA dataset."""
+
+    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification = '5.0'):
+        """
+        Args:
+            sample_annot (dict): dictionary of sample names and their respective labels.
+            root_dir (string): directory containing all of the samples and their respective images.
+            transform (callable, optional): optional transform to be applied on the images of a sample.
+        """
+        self.sample_names = list(sample_annotations.keys())
+        self.sample_labels = list(sample_annotations.values())
+        self.root_dir = root_dir
+        self.transform = transform
+        self.loader = loader
+        self.img_dirs = [self.root_dir + sample_name + '.svs/' \
+                         + sample_name + '_files/'+ magnification for sample_name in self.sample_names]
+        self.jpegs = [os.listdir(img_dir) for img_dir in self.img_dirs]
+        self.all_jpegs = []
+        self.all_labels = []
+        for im_dir,label,l in zip(self.img_dirs,self.sample_labels,self.jpegs):
+            for jpeg in l:
+                self.all_jpegs.append(im_dir+'/'+jpeg)
+                self.all_labels.append(label)
+                    
+                    
+    def __len__(self):
+        return len(self.sample_names)
+
+    def __getitem__(self, idx):
+        
+        image = self.loader(self.all_jpegs[idx])
+        label = self.all_labels[idx]
+        
+        if self.transform is not None:
+               image = self.transform(image)
+        if image.shape[1] < 256 or image.shape[2] < 256:
+               image = pad_tensor_up_to(image,256,256,channels_last=False)
+                
+        return image, label
