@@ -3,10 +3,12 @@ import sys
 import torch
 import accimage
 import numpy as np
+import pandas as pd
 from PIL import Image
 from imageio import imread
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, models, transforms, set_image_backend, get_image_backend
+import torch.nn.functional as F
 
 
 max_tiles = 100
@@ -112,16 +114,64 @@ class TCGADataset_tiles(Dataset):
                     
                     
     def __len__(self):
-        return len(self.sample_names)
+        return len(self.all_jpegs)
 
     def __getitem__(self, idx):
         
         image = self.loader(self.all_jpegs[idx])
-        label = self.all_labels[idx]
         
         if self.transform is not None:
                image = self.transform(image)
         if image.shape[1] < 256 or image.shape[2] < 256:
                image = pad_tensor_up_to(image,256,256,channels_last=False)
                 
-        return image, label
+        return image, self.all_labels[idx]
+    
+    
+    
+def process_MSI_data():
+    root_dir = '/n/mounted-data-drive/COAD/'
+    msi_path = 'COAD_MSI_CLASS.csv'
+    msi_raw = pd.read_csv(msi_path,index_col=0)    
+    msi_raw['barcode'] = [s.replace('.','-') for s in list(msi_raw.index)]
+    missing_gels = np.argwhere(msi_raw[['MSI.gel']].isnull().values)[:,0]
+    msi_label = msi_raw['MSI.gel'].values
+    for i in missing_gels:
+        if msi_label[i]:
+            msi_label[i]='MSI_L'
+        else:
+            msi_label[i]='MSS'
+    b, c = np.unique(msi_label, return_inverse=True)
+    msi_label = 2 - c     
+    sample_name = msi_raw.iloc[-1]['barcode']
+    name_len = len(sample_name)
+    coad_full_name = os.listdir(root_dir)
+    coad_img = np.array([v[0:name_len] for v in coad_full_name])
+    #len(coad_img), coad_img[5], coad_full_name[5]
+    coad_both = np.intersect1d(coad_img, msi_raw.barcode)
+    sample_names = []
+    for sample in coad_both:
+        #if sample != 'TCGA-A6-2675': # 5.0 empty for 'TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab'
+        key = np.argwhere(coad_img == sample).squeeze()
+        if key.size != 0:
+            sample_names.append(coad_full_name[key][:-4])
+    msi_raw.set_index('barcode', inplace=True)
+    reorder = np.random.permutation(len(sample_names))
+    train = reorder[:int(np.floor(len(sample_names)*0.8))]
+    val = reorder[int(np.floor(len(sample_names)*0.8)):]
+    sample_annotations = {}
+    sample_names = np.array(sample_names)
+    msi_raw['MSI.int'] = msi_label
+    for sample_name in sample_names[train]:
+        sample_annotations[sample_name] = msi_raw.loc[sample_name[0:name_len], 'MSI.int']
+    sample_annotations_train = sample_annotations
+    
+    sample_annotations = {}
+    sample_names = np.array(sample_names)
+    msi_raw['MSI.int'] = msi_label
+    for sample_name in sample_names[val]:
+        sample_annotations[sample_name] = msi_raw.loc[sample_name[0:name_len], 'MSI.int']
+    sample_annotations_val = sample_annotations
+    return sample_annotations_train, sample_annotations_val
+    
+    
