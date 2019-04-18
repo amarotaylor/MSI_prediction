@@ -21,10 +21,13 @@ transform = transforms.Compose([transforms.ToTensor(),
                                 normalize])
 
 
-def embedding_training_loop(e, train_loader, net, criterion, optimizer,device='cuda:0'):
+def embedding_training_loop(e, train_loader, net, criterion, optimizer,device='cuda:0', task = 'MSI'):
     net.train()
     total_loss = 0
-    encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
+    if task == 'MSI':
+        encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
+    elif task == 'WGD':
+        encoding = torch.tensor([[0],[1]], device=device).float()
     
     for idx,(batch,labels) in enumerate(train_loader):
         batch, labels = batch.cuda(device=device), encoding[labels.cuda(device=device)]
@@ -40,13 +43,15 @@ def embedding_training_loop(e, train_loader, net, criterion, optimizer,device='c
     print('Epoch: {0}, Avg Train NLL: {1:0.4f}'.format(e, total_loss/float(idx+1)))
     del batch,labels
 
-def embedding_validation_loop(e, valid_loader, net, criterion, dataset='Val', scheduler=None,device='cuda:0'):
+def embedding_validation_loop(e, valid_loader, net, criterion, dataset='Val', scheduler=None,device='cuda:0',task='MSI'):
     net.eval()
     total_loss = 0
     all_labels = []
     all_preds = []
-    encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
-    
+    if task == 'MSI':
+        encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
+    elif task == 'WGD':
+        encoding = torch.tensor([[0],[1]], device=device).float()
     with torch.no_grad():
         for idx,(batch,labels) in enumerate(valid_loader):
             batch, labels = batch.cuda(device=device), encoding[labels.cuda(device=device)]

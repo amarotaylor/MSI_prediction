@@ -81,8 +81,8 @@ def main():
     for e in range(args.epochs):
         if e % 10 == 0:
             print('---------- LR: {0:0.8f} ----------'.format(optimizer.state_dict()['param_groups'][0]['lr']))
-        train_utils.embedding_training_loop(e, train_loader, resnet, criterion, optimizer,device=device)
-        val_loss = train_utils.embedding_validation_loop(e, valid_loader, resnet, criterion, dataset='Val', scheduler=scheduler,device=device)
+        train_utils.embedding_training_loop(e, train_loader, resnet, criterion, optimizer,device=device,task=args.Task.upper())
+        val_loss = train_utils.embedding_validation_loop(e, valid_loader, resnet, criterion, dataset='Val', scheduler=scheduler,device=device,task=args.Task.upper())
         if val_loss < best_loss:
             torch.save(resnet.state_dict(),args.model_name)
             best_loss = val_loss
