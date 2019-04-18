@@ -52,7 +52,8 @@ def main():
     val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform)
 
     # set weights for random sampling of tiles such that batches are class balanced
-    weights = 1.0/np.array(list(Counter(train_set.all_labels).values()),dtype=float)*1e3
+    counts = [c[1] for c in sorted(Counter(train_set.all_labels).items())]
+    weights = 1.0 / np.array(counts, dtype=float) * 1e3
     reciprocal_weights =[]
     for index in range(len(train_set)):
         reciprocal_weights.append(weights[train_set.all_labels[index]])
@@ -79,7 +80,7 @@ def main():
     best_loss = 1e8
     for e in range(args.epochs):
         if e % 10 == 0:
-            print('---------- LR: {0:0.5f} ----------'.format(optimizer.state_dict()['param_groups'][0]['lr']))
+            print('---------- LR: {0:0.8f} ----------'.format(optimizer.state_dict()['param_groups'][0]['lr']))
         train_utils.embedding_training_loop(e, train_loader, resnet, criterion, optimizer,device=device)
         val_loss = train_utils.embedding_validation_loop(e, valid_loader, resnet, criterion, dataset='Val', scheduler=scheduler,device=device)
         if val_loss < best_loss:

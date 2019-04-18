@@ -138,6 +138,7 @@ def process_MSI_data():
     msi_raw['barcode'] = [s.replace('.','-') for s in list(msi_raw.index)]
     missing_gels = np.argwhere(msi_raw[['MSI.gel']].isnull().values)[:,0]
     msi_label = msi_raw['MSI.gel'].values
+    
     for i in missing_gels:
         if msi_label[i]:
             msi_label[i]='MSI_L'
@@ -149,11 +150,10 @@ def process_MSI_data():
     name_len = len(sample_name)
     coad_full_name = os.listdir(root_dir)
     coad_img = np.array([v[0:name_len] for v in coad_full_name])
-    #len(coad_img), coad_img[5], coad_full_name[5]
     coad_both = np.intersect1d(coad_img, msi_raw.barcode)
     sample_names = []
+    
     for sample in coad_both:
-        #if sample != 'TCGA-A6-2675': # 5.0 empty for 'TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab'
         key = np.argwhere(coad_img == sample).squeeze()
         if key.size != 0:
             sample_names.append(coad_full_name[key][:-4])
@@ -161,6 +161,7 @@ def process_MSI_data():
     reorder = np.random.permutation(len(sample_names))
     train = reorder[:int(np.floor(len(sample_names)*0.8))]
     val = reorder[int(np.floor(len(sample_names)*0.8)):]
+    
     sample_annotations = {}
     sample_names = np.array(sample_names)
     msi_raw['MSI.int'] = msi_label
@@ -174,6 +175,41 @@ def process_MSI_data():
     for sample_name in sample_names[val]:
         sample_annotations[sample_name] = msi_raw.loc[sample_name[0:name_len], 'MSI.int']
     sample_annotations_val = sample_annotations
+    
     return sample_annotations_train, sample_annotations_val
     
     
+def process_WGD_data():
+    root_dir = '/n/mounted-data-drive/COAD/'
+    wgd_path = 'COAD_WGD_TABLE.xls'
+    wgd_raw = pd.read_excel(wgd_path)
+    sample_name = wgd_raw['Sample'][0]
+    name_len = len(sample_name)
+    coad_full_name = os.listdir(root_dir)
+    coad_img = np.array([v[0:name_len] for v in coad_full_name])
+    coad_both = np.intersect1d(coad_img, wgd_raw.Sample)
+    sample_names = []
+    
+    for sample in coad_both:
+        key = np.argwhere(coad_img == sample).squeeze()
+        if key.size != 0:
+            sample_names.append(coad_full_name[key][:-4])
+    wgd_raw.set_index('Sample', inplace=True)
+    reorder = np.random.permutation(len(sample_names))
+    idx = int(np.floor(len(sample_names)*0.8))
+    train = reorder[:idx]
+    val = reorder[idx:]
+
+    sample_annotations = {}
+    sample_names = np.array(sample_names)
+    for sample_name in sample_names[train]:
+        sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
+    sample_annotations_train = sample_annotations
+
+    sample_annotations = {}
+    sample_names = np.array(sample_names)
+    for sample_name in sample_names[val]:
+        sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
+    sample_annotations_val = sample_annotations
+
+    return sample_annotations_train, sample_annotations_val
