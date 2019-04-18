@@ -21,13 +21,13 @@ transform = transforms.Compose([transforms.ToTensor(),
                                 normalize])
 
 
-def embedding_training_loop(e, train_loader, net, criterion, optimizer):
+def embedding_training_loop(e, train_loader, net, criterion, optimizer,device='cuda:0'):
     net.train()
     total_loss = 0
-    encoding = torch.tensor([[0,0],[1,0],[1,1]], device='cuda').float()
+    encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
     
     for idx,(batch,labels) in enumerate(train_loader):
-        batch, labels = batch.cuda(), encoding[labels.cuda()]
+        batch, labels = batch.cuda(device=device), encoding[labels.cuda(device=device)]
         output = net(batch)
         loss = criterion(output, labels)
         loss.backward()
@@ -40,16 +40,16 @@ def embedding_training_loop(e, train_loader, net, criterion, optimizer):
     print('Epoch: {0}, Avg Train NLL: {1:0.4f}'.format(e, total_loss/float(idx+1)))
     del batch,labels
 
-def embedding_validation_loop(e, valid_loader, net, criterion, dataset='Val', scheduler=None):
+def embedding_validation_loop(e, valid_loader, net, criterion, dataset='Val', scheduler=None,device='cuda:0'):
     net.eval()
     total_loss = 0
     all_labels = []
     all_preds = []
-    encoding = torch.tensor([[0,0],[1,0],[1,1]], device='cuda').float()
+    encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
     
     with torch.no_grad():
         for idx,(batch,labels) in enumerate(valid_loader):
-            batch, labels = batch.cuda(), encoding[labels.cuda()]
+            batch, labels = batch.cuda(device=device), encoding[labels.cuda(device=device)]
             output = net(batch)
             loss = criterion(output, labels)
         
