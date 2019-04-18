@@ -84,12 +84,12 @@ def embedding_validation_loop(e, valid_loader, net, criterion, dataset='Val', sc
             all_preds.append(torch.argmax(output,1).float().detach().cpu().numpy())
 
             if idx % 200 == 0:
-                print('Epoch: {0}, Batch: {1}, {3} NLL: {2:0.4f}'.format(e, idx, loss, dataset))
+             print('Epoch: {0}, Batch: {1}, {3} NLL: {2:0.4f}'.format(e, idx, loss, dataset))
 
         if scheduler is not None:
             scheduler.step(total_loss)
-            
-    acc = np.mean(np.array([l==p for l,p in zip(all_labels,all_preds)]),dtype=float)
+    #acc = np.mean(np.array([l==p for l,p in zip(all_labels,all_preds)],dtype=float))
+    acc = -1.0
     print('Epoch: {0}, Avg {3} NLL: {1:0.4f}, {3} Acc: {2:0.4f}'.format(e, total_loss/float(idx+1), acc, dataset))
     del batch,labels
     
@@ -98,10 +98,12 @@ def embedding_validation_loop(e, valid_loader, net, criterion, dataset='Val', sc
 learning_rate = 1e-2
 criterion = nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(resnet.parameters(), lr = learning_rate)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=100, min_lr=1e-6)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, min_lr=1e-6)
 
-for e in range(1):
+for e in range(200):
     if e % 10 == 0:
         print('---------- LR: {0:0.5f} ----------'.format(optimizer.state_dict()['param_groups'][0]['lr']))
     embedding_training_loop(e, train_loader, resnet, criterion, optimizer)
     val_loss = embedding_validation_loop(e, valid_loader, resnet, criterion, dataset='Val', scheduler=scheduler)
+resnet.save_state_dict('resnet.pt')
+
