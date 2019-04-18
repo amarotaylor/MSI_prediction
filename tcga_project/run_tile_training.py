@@ -35,16 +35,16 @@ reciprocal_weights =[]
 for index in range(len(train_set)):
     reciprocal_weights.append(weights[train_set.all_labels[index]])
     
-batch_size = 256
-sampler = torch.utils.data.sampler.WeightedRandomSampler(reciprocal_weights, len(reciprocal_weights), replacement=True)
-train_loader = DataLoader(train_set, batch_size=batch_size, pin_memory=True, sampler=sampler, num_workers=12)
-valid_loader = DataLoader(val_set, batch_size=batch_size, pin_memory=True, num_workers=12)
+batch_size = 356
+sampler = torch.utils.data.sampler.WeightedRandomSampler(reciprocal_weights, len(reciprocal_weights), replacement=False)
+train_loader = DataLoader(train_set, batch_size=batch_size, pin_memory=True, sampler=sampler, num_workers=16)
+valid_loader = DataLoader(val_set, batch_size=batch_size, pin_memory=True, num_workers=16)
 
 resnet = models.resnet18(pretrained=True)
 resnet.fc = nn.Linear(2048,2,bias=True)#8192
 resnet.cuda()
 
-learning_rate = 1e-2
+learning_rate = 1e-4
 criterion = nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(resnet.parameters(), lr = learning_rate)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, min_lr=1e-6)
@@ -56,6 +56,6 @@ for e in range(200):
     train_utils.embedding_training_loop(e, train_loader, resnet, criterion, optimizer)
     val_loss = train_utils.embedding_validation_loop(e, valid_loader, resnet, criterion, dataset='Val', scheduler=scheduler)
     if val_loss < best_loss:
-        resnet.save_state_dict('resnet.pt')
+        torch.save(resnet.state_dict(),'resnet.pt')
         best_loss = val_loss
 
