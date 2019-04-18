@@ -12,6 +12,7 @@ import torch.nn.functional as F
 
 
 max_tiles = 100
+root_dir_coad = '/n/mounted-data-drive/COAD/'
 
 
 def pil_loader(path):
@@ -117,9 +118,10 @@ class TCGADataset_tiles(Dataset):
         return len(self.all_jpegs)
 
     def __getitem__(self, idx):
-        
         image = self.loader(self.all_jpegs[idx])
-        
+        FLIP_LEFT_RIGHT = torch.randn(1) > 0
+        if FLIP_LEFT_RIGHT:
+            image.transpose(0)
         if self.transform is not None:
                image = self.transform(image)
         if image.shape[1] < 256 or image.shape[2] < 256:
