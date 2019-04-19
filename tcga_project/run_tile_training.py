@@ -37,8 +37,8 @@ def main():
     root_dir = data_utils.root_dir_coad
 
     # normalize and tensorify jpegs
-    transform = train_utils.transform
-    
+    transform_train = train_utils.transform_train
+    transform_val = train_utils.transform_validation
     # set the task
     # TODO: implement a general for for table to perform predictions
     if args.Task.upper() == 'MSI':
@@ -48,8 +48,8 @@ def main():
         sa_train, sa_val = data_utils.process_WGD_data()
         output_shape = 1
     
-    train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform)
-    val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform)
+    train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train)
+    val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val)
 
     # set weights for random sampling of tiles such that batches are class balanced
     counts = [c[1] for c in sorted(Counter(train_set.all_labels).items())]
@@ -63,7 +63,7 @@ def main():
     # TODO: implement switch to weighted loss or weighted sampler
     sampler = torch.utils.data.sampler.WeightedRandomSampler(reciprocal_weights, len(reciprocal_weights), replacement=True)
     train_loader = DataLoader(train_set, batch_size=batch_size, pin_memory=True, sampler=sampler, num_workers=args.n_workers)
-    valid_loader = DataLoader(val_set, batch_size=batch_size, pin_memory=True, num_workers=args.n_workers, augment=False)
+    valid_loader = DataLoader(val_set, batch_size=batch_size, pin_memory=True, num_workers=args.n_workers)
     
     # TODO: allow resnet model specification or introduce other model choices
     resnet = models.resnet18(pretrained=True)

@@ -17,8 +17,12 @@ from collections import Counter
 
 # normalize and tensorify jpegs
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-transform = transforms.Compose([transforms.ToTensor(),
+transform_validation = transforms.Compose([transforms.ToTensor(),
                                 normalize])
+transform_train = transforms.Compose([transforms.ToTensor(),transforms.ToPILImage(),
+                                transforms.RandomVerticalFlip(),transforms.RandomHorizontalFlip(),
+                               transforms.ColorJitter(hue=0.02,saturation=0.1),
+                                      transforms.ToTensor(),normalize])
 
 
 def embedding_training_loop(e, train_loader, net, criterion, optimizer,device='cuda:0', task = 'MSI'):
