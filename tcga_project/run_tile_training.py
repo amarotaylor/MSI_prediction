@@ -27,7 +27,7 @@ def main():
     parser.add_argument('--model_name',help='Path to place saved model state', required = True,type=str)
     parser.add_argument('--batch_size',help='Batch size for training and validation loops', required=False,default=264,type=int)
     parser.add_argument('--epochs',help='Epochs to run training and validation loops', required=False,default=50,type=int)
-
+    parser.add_argument('--fine_tune_classifier_only',help='Freeze convolutional layers',action='store_true')
     args = parser.parse_args()
     
     # https://github.com/pytorch/accimage
@@ -65,14 +65,17 @@ def main():
     train_loader = DataLoader(train_set, batch_size=batch_size, pin_memory=True, sampler=sampler, num_workers=args.n_workers)
     valid_loader = DataLoader(val_set, batch_size=batch_size, pin_memory=True, num_workers=args.n_workers)
     
+    learning_rate = args.lr
     # TODO: allow resnet model specification or introduce other model choices
     resnet = models.resnet18(pretrained=True)
     # TODOD: implement flexible solution to these hardcoded values
-    
+    if args.fine_tune_classifier_only:
+        for param in resnet.parameters():
+            param.requires_grad = False
     resnet.fc = nn.Linear(2048,output_shape,bias=True)#8192
     resnet.cuda(device=device)
 
-    learning_rate = args.lr
+    
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(resnet.parameters(), lr = learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=args.patience, min_lr=1e-6)
