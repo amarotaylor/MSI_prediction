@@ -47,15 +47,18 @@ def embedding_training_loop(e, train_loader, net, criterion, optimizer,device='c
     print('Epoch: {0}, Avg Train NLL: {1:0.4f}'.format(e, total_loss/float(idx+1)))
     del batch,labels
 
-def embedding_validation_loop(e, valid_loader, net, criterion, dataset='Val', scheduler=None,device='cuda:0',task='MSI'):
+def embedding_validation_loop(e, valid_loader, net, criterion, jpg_to_sample, 
+                              dataset='Val', scheduler=None, device='cuda:0', task='MSI'):
     net.eval()
     total_loss = 0
     all_labels = []
     all_preds = []
+    
     if task == 'MSI':
         encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
     elif task == 'WGD':
         encoding = torch.tensor([[0],[1]], device=device).float()
+        
     with torch.no_grad():
         for idx,(batch,labels) in enumerate(valid_loader):
             batch, labels = batch.cuda(device=device), encoding[labels.cuda(device=device)]
@@ -73,6 +76,24 @@ def embedding_validation_loop(e, valid_loader, net, criterion, dataset='Val', sc
             scheduler.step(total_loss)
             
     acc = np.mean(np.array(all_labels) == np.array(all_preds))
-    print('Epoch: {0}, Avg {3} NLL: {1:0.4f}, {3} Acc: {2:0.4f}'.format(e, total_loss/float(idx+1), acc, dataset))
+    
+    d = {'label': all_labels, 'pred': all_preds, 'sample': jpg_to_sample}
+    df = pd.DataFrame(data = d)
+    df['correct_tile'] = df['label'] == df['pred']
+    df.groupby(['label'])['correct_tile'].mean()
+    acc_label = ', '.join([str(i) + ': ' + str(df.groupby(['label'])['correct_tile'].mean()[i])[:6] for i in range(encoding.shape[0])])
+    
+    df2 = df.groupby(['sample'])['label','pred'].mean().round()
+    df2['correct_sample'] = df2['label'] == df2['pred']
+    mean_pool_acc = df2['correct_sample'].mean()
+    
+    df3 = df.groupby(['sample'])['label','pred'].max()
+    df3['correct_sample'] = df3['label'] == df3['pred']
+    max_pool_acc = df3['correct_sample'].mean()
+    
+    print('Epoch: {0}, Avg {3} NLL: {1:0.4f}, {3} Tile-Level Acc: {2:0.4f}'.format(e, total_loss/float(idx+1), acc, dataset))
+    print('{1} Tile-Level Acc by Label: {0}'.format(acc_label, dataset))
+    print('{2} Slide-Level Acc: Mean-Pooling: {0:0.4f}, Max-Pooling: {1:0.4f}'.format(mean_pool_acc, max_pool_acc, dataset))
+    
     del batch,labels
     return total_loss

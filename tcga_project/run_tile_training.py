@@ -33,14 +33,16 @@ def main():
     # https://github.com/pytorch/accimage
     set_image_backend('accimage')
     device = torch.device('cuda', args.GPU)
+    
     # set root dir for images
     root_dir = data_utils.root_dir_coad
 
     # normalize and tensorify jpegs
     transform_train = train_utils.transform_train
     transform_val = train_utils.transform_validation
+    
     # set the task
-    # TODO: implement a general for for table to perform predictions
+    # TODO: implement a general for table to perform predictions
     if args.Task.upper() == 'MSI':
         sa_train, sa_val = data_utils.process_MSI_data()
         output_shape = 2
@@ -50,7 +52,8 @@ def main():
     
     train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train)
     val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val)
-
+    jpg_to_sample = val_set.jpg_to_sample
+    
     # set weights for random sampling of tiles such that batches are class balanced
     counts = [c[1] for c in sorted(Counter(train_set.all_labels).items())]
     weights = 1.0 / np.array(counts, dtype=float) * 1e3
@@ -68,7 +71,7 @@ def main():
     learning_rate = args.lr
     # TODO: allow resnet model specification or introduce other model choices
     resnet = models.resnet18(pretrained=True)
-    # TODOD: implement flexible solution to these hardcoded values
+    # TODO: implement flexible solution to these hardcoded values
     if args.fine_tune_classifier_only:
         for param in resnet.parameters():
             param.requires_grad = False
@@ -79,8 +82,8 @@ def main():
         optimizer = torch.optim.Adam(resnet.fc.parameters(), lr = learning_rate)
     else:
         optimizer = torch.optim.Adam(resnet.parameters(), lr = learning_rate)
+        
     criterion = nn.BCEWithLogitsLoss()
-    
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=args.patience, min_lr=1e-6)
 
     best_loss = 1e8
@@ -88,9 +91,10 @@ def main():
         if e % 10 == 0:
             print('---------- LR: {0:0.8f} ----------'.format(optimizer.state_dict()['param_groups'][0]['lr']))
         train_utils.embedding_training_loop(e, train_loader, resnet, criterion, optimizer,device=device,task=args.Task.upper())
-        val_loss = train_utils.embedding_validation_loop(e, valid_loader, resnet, criterion, dataset='Val', scheduler=scheduler,device=device,task=args.Task.upper())
+        val_loss = train_utils.embedding_validation_loop(e, valid_loader, resnet, criterion, jpg_to_sample, dataset='Val', 
+                                                         scheduler=scheduler, device=device, task=args.Task.upper())
         if val_loss < best_loss:
-            torch.save(resnet.state_dict(),args.model_name)
+            torch.save(resnet.state_dict(), args.model_name)
             best_loss = val_loss
 
 if __name__ == "__main__":

@@ -78,6 +78,7 @@ class TCGADataset(Dataset):
 
         return slide, label
     
+    
 def pad_tensor_up_to(x,H,W,channels_last=True):
     if channels_last==False:
         p1d = (0,W - x.shape[2],0,H - x.shape[1],0,0)
@@ -91,7 +92,7 @@ def pad_tensor_up_to(x,H,W,channels_last=True):
 class TCGADataset_tiles(Dataset):
     """TCGA dataset."""
 
-    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification = '5.0'):
+    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification='5.0'):
         """
         Args:
             sample_annot (dict): dictionary of sample names and their respective labels.
@@ -108,12 +109,14 @@ class TCGADataset_tiles(Dataset):
         self.jpegs = [os.listdir(img_dir) for img_dir in self.img_dirs]
         self.all_jpegs = []
         self.all_labels = []
-        for im_dir,label,l in zip(self.img_dirs,self.sample_labels,self.jpegs):
+        self.jpg_to_sample = []
+        
+        for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs,self.sample_labels,self.jpegs)):
             for jpeg in l:
                 self.all_jpegs.append(im_dir+'/'+jpeg)
                 self.all_labels.append(label)
-                    
-                    
+                self.jpg_to_sample.append(idx)
+                          
     def __len__(self):
         return len(self.all_jpegs)
 
@@ -126,8 +129,7 @@ class TCGADataset_tiles(Dataset):
                 
         return image, self.all_labels[idx]
     
-    
-    
+       
 def process_MSI_data():
     root_dir = '/n/mounted-data-drive/COAD/'
     msi_path = 'COAD_MSI_CLASS.csv'
