@@ -91,7 +91,7 @@ def pad_tensor_up_to(x,H,W,channels_last=True):
 class TCGADataset_tiles(Dataset):
     """TCGA dataset."""
 
-    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification = '5.0'):
+    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification = '5.0', augment = True):
         """
         Args:
             sample_annot (dict): dictionary of sample names and their respective labels.
@@ -108,6 +108,7 @@ class TCGADataset_tiles(Dataset):
         self.jpegs = [os.listdir(img_dir) for img_dir in self.img_dirs]
         self.all_jpegs = []
         self.all_labels = []
+        self.augment = augment
         for im_dir,label,l in zip(self.img_dirs,self.sample_labels,self.jpegs):
             for jpeg in l:
                 self.all_jpegs.append(im_dir+'/'+jpeg)
@@ -120,7 +121,7 @@ class TCGADataset_tiles(Dataset):
     def __getitem__(self, idx):
         image = self.loader(self.all_jpegs[idx])
         FLIP_LEFT_RIGHT = torch.randn(1) > 0
-        if FLIP_LEFT_RIGHT:
+        if FLIP_LEFT_RIGHT and self.augment:
             image.transpose(0)
         if self.transform is not None:
                image = self.transform(image)
