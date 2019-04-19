@@ -75,9 +75,12 @@ def main():
     resnet.fc = nn.Linear(2048,output_shape,bias=True)#8192
     resnet.cuda(device=device)
 
-    
+    if args.fine_tune_classifier_only:
+        optimizer = torch.optim.Adam(resnet.fc.parameters(), lr = learning_rate)
+    else:
+        optimizer = torch.optim.Adam(resnet.parameters(), lr = learning_rate)
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(resnet.parameters(), lr = learning_rate)
+    
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=args.patience, min_lr=1e-6)
 
     best_loss = 1e8
