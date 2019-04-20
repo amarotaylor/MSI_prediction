@@ -30,7 +30,7 @@ def embedding_training_loop(e, train_loader, net, criterion, optimizer,device='c
     total_loss = 0
     if task == 'MSI':
         encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
-    elif task == 'WGD':
+    elif task == 'WGD' or task == 'MSI-SINGLE_LABEL':
         encoding = torch.tensor([[0],[1]], device=device).float()
     
     for idx,(batch,labels) in enumerate(train_loader):
@@ -57,7 +57,7 @@ def embedding_validation_loop(e, valid_loader, net, criterion, jpg_to_sample,
     
     if task == 'MSI':
         encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
-    elif task == 'WGD':
+    elif task == 'WGD' or task == 'MSI-SINGLE_LABEL':
         encoding = torch.tensor([[0],[1]], device=device).float()
         
     with torch.no_grad():

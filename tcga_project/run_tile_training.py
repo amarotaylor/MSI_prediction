@@ -19,7 +19,7 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description='Model training engine for molecular phenotype models from TCGA images')
     
-    parser.add_argument('--Task',help='WGD prediction or MSI (only implemented tasks)', required=True, type=str)
+    parser.add_argument('--Task',help='WGD, MSI, MSI-SINGLE_LABEL (only implemented tasks)', required=True, type=str)
     parser.add_argument('--GPU', help='GPU device to use for model training', required=True, type=int)
     parser.add_argument('--n_workers', help='Number of workers to use for dataloaders', required=False, default = 12, type=int)
     parser.add_argument('--lr',help='Inital learning rate',required = False, default=1e-4, type=float)
@@ -50,7 +50,16 @@ def main():
     elif args.Task.upper() == 'WGD':
         sa_train, sa_val = data_utils.process_WGD_data()
         output_shape = 1
-    
+    elif args.Task.upper() == 'MSI-SINGLE_LABEL':
+        sa_train, sa_val = data_utils.process_MSI_data()
+        # replace ordinal labels with binary
+        for key,value in zip(sa_train.keys(),sa_train.values()):
+            sa_train[key] = int(value>=1)
+            
+        for key,value in zip(sa_val.keys(),sa_val.values()):
+            sa_val[key] = int(value>=1)
+        output_shape = 1
+        
     train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train, magnification=args.magnification)
     val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val, magnification=args.magnification)
     jpg_to_sample = val_set.jpg_to_sample
