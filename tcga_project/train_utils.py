@@ -41,7 +41,7 @@ def embedding_training_loop(e, train_loader, net, criterion, optimizer,device='c
         total_loss += loss.detach().cpu().numpy()
         optimizer.step()
         optimizer.zero_grad()
-        if idx % 10 == 0 and idx>0:
+        if idx % 100 == 0 and idx > 0:
             print('Epoch: {0}, Batch: {1}, Train NLL: {2:0.4f}'.format(e, idx, loss))
   
     print('Epoch: {0}, Avg Train NLL: {1:0.4f}'.format(e, total_loss/float(idx+1)))
@@ -53,6 +53,7 @@ def embedding_validation_loop(e, valid_loader, net, criterion, jpg_to_sample,
     total_loss = 0
     all_labels = []
     all_preds = []
+    all_loss = []
     
     if task == 'MSI':
         encoding = torch.tensor([[0,0],[1,0],[1,1]], device=device).float()
@@ -65,11 +66,12 @@ def embedding_validation_loop(e, valid_loader, net, criterion, jpg_to_sample,
             output = net(batch)
             loss = criterion(output, labels)
         
-            total_loss += loss.detach().cpu().numpy()
+            total_loss += torch.sum(loss.detach()).cpu().numpy()
             all_labels.extend(torch.sum(labels, dim=1).float().cpu().numpy())
             all_preds.extend(torch.sum(torch.sigmoid(output) > 0.5, dim=1).float().detach().cpu().numpy())
-        
-            if idx % 10 == 0 and idx>0:
+            all_loss.extend(loss.detach().mean(dim=1).cpu().numpy())
+            
+            if idx % 100 == 0 and idx > 0:
                 print('Epoch: {0}, Batch: {1}, {3} NLL: {2:0.4f}'.format(e, idx, loss, dataset))
 
         if scheduler is not None:
@@ -91,9 +93,10 @@ def embedding_validation_loop(e, valid_loader, net, criterion, jpg_to_sample,
     df3['correct_sample'] = df3['label'] == df3['pred']
     max_pool_acc = df3['correct_sample'].mean()
     
-    print('Epoch: {0}, Avg {3} NLL: {1:0.4f}, {3} Tile-Level Acc: {2:0.4f}'.format(e, total_loss/float(idx+1), acc, dataset))
-    print('{1} Tile-Level Acc by Label: {0}'.format(acc_label, dataset))
+    print('Epoch: {0}, Avg {3} NLL: {1:0.4f}, Median {3} NLL: {2:0.4f}'.format(e, total_loss/float(idx+1), 
+                                                                               np.median(all_loss), dataset))
+    print('{2} Tile-Level Acc: {0:0.4f}, By Label: {1:0.4f}'.format(acc, acc_label, dataset))
     print('{2} Slide-Level Acc: Mean-Pooling: {0:0.4f}, Max-Pooling: {1:0.4f}'.format(mean_pool_acc, max_pool_acc, dataset))
     
     del batch,labels
-    return total_loss
+    return total_loss, mean_pool_acc

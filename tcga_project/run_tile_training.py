@@ -83,19 +83,26 @@ def main():
     else:
         optimizer = torch.optim.Adam(resnet.parameters(), lr = learning_rate)
         
-    criterion = nn.BCEWithLogitsLoss()
+    criterion_train = nn.BCEWithLogitsLoss(reduction = 'mean')
+    criterion_val = nn.BCEWithLogitsLoss(reduction = 'none')
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=args.patience, min_lr=1e-6)
 
     best_loss = 1e8
+    best_acc = 0.0
     for e in range(args.epochs):
         if e % 10 == 0:
             print('---------- LR: {0:0.8f} ----------'.format(optimizer.state_dict()['param_groups'][0]['lr']))
-        train_utils.embedding_training_loop(e, train_loader, resnet, criterion, optimizer,device=device,task=args.Task.upper())
-        val_loss = train_utils.embedding_validation_loop(e, valid_loader, resnet, criterion, jpg_to_sample, dataset='Val', 
-                                                         scheduler=scheduler, device=device, task=args.Task.upper())
+        train_utils.embedding_training_loop(e, train_loader, resnet, criterion_train, 
+                                            optimizer,device=device,task=args.Task.upper())
+        val_loss, val_acc = train_utils.embedding_validation_loop(e, valid_loader, resnet, criterion_val, 
+                                                         jpg_to_sample, dataset='Val', scheduler=scheduler, 
+                                                         device=device, task=args.Task.upper())
         if val_loss < best_loss:
             torch.save(resnet.state_dict(), args.model_name)
             best_loss = val_loss
+        elif val_acc > best_acc:
+            torch.save(resnet.state_dict(), args.model_name)
+            best_acc = val_acc
 
 if __name__ == "__main__":
     main()
