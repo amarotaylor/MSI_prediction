@@ -54,12 +54,16 @@ def main():
         sa_train, sa_val = data_utils.process_MSI_data()
         # replace ordinal labels with binary
         for key,value in zip(sa_train.keys(),sa_train.values()):
-            sa_train[key] = int(value>=1)
-            
+            sa_train[key] = int(value>=1)            
         for key,value in zip(sa_val.keys(),sa_val.values()):
             sa_val[key] = int(value>=1)
         output_shape = 1
         
+    # save sample_annotations_train, sample_annotations_val as pickle
+    pickle_file = args.model_name[:-3] + '_sa.pkl'
+    with open(pickle_file, 'wb') as f: 
+        pickle.dump([sa_train, sa_val], f)
+
     train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train, magnification=args.magnification)
     val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val, magnification=args.magnification)
     jpg_to_sample = val_set.jpg_to_sample
