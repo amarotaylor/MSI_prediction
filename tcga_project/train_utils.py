@@ -18,10 +18,12 @@ from collections import Counter
 # normalize and tensorify jpegs
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 transform_validation = transforms.Compose([transforms.ToTensor(),
-                                normalize])
-transform_train = transforms.Compose([transforms.ToTensor(),transforms.ToPILImage(),
-                                transforms.RandomVerticalFlip(),transforms.RandomHorizontalFlip(),
-                               transforms.ColorJitter(hue=0.02,saturation=0.1),
+                                           normalize])
+transform_train = transforms.Compose([transforms.ToTensor(),
+                                      transforms.ToPILImage(),
+                                      transforms.RandomVerticalFlip(),
+                                      transforms.RandomHorizontalFlip(),
+                                      transforms.ColorJitter(hue=0.02,saturation=0.1),
                                       transforms.ToTensor(),normalize])
 
 
@@ -84,7 +86,7 @@ def embedding_validation_loop(e, valid_loader, net, criterion, jpg_to_sample,
     df = pd.DataFrame(data = d)
     df['correct_tile'] = df['label'] == df['pred']
     df.groupby(['label'])['correct_tile'].mean()
-    acc_label = ', '.join([str(i) + ': ' + str(df.groupby(['label'])['correct_tile'].mean()[i])[:6] for i in range(encoding.shape[0])])
+    tile_acc_by_label = ', '.join([str(i) + ': ' + str(float(df.groupby(['label'])['correct_tile'].mean()[i]))[:6] for i in range(encoding.shape[0])])
     
     df2 = df.groupby(['sample'])['label','pred'].mean().round()
     df2['correct_sample'] = df2['label'] == df2['pred']
@@ -94,11 +96,14 @@ def embedding_validation_loop(e, valid_loader, net, criterion, jpg_to_sample,
     df3['correct_sample'] = df3['label'] == df3['pred']
     max_pool_acc = df3['correct_sample'].mean()
     
+    slide_acc_by_label = ', '.join([str(i) + ': ' + str(float(df2.groupby(['label'])['correct_sample'].mean()[i]))[:6] for i in range(encoding.shape[0])])
+    
     print('Epoch: {0}, Avg {3} NLL: {1:0.4f}, Median {3} NLL: {2:0.4f}'.format(e, total_loss/(float(idx+1) * batch.shape[0]), 
                                                                                np.median(all_loss), dataset))
-    print('------ {2} Tile-Level Acc: {0:0.4f}; By Label: {1}'.format(acc, acc_label, dataset))
+    print('------ {2} Tile-Level Acc: {0:0.4f}; By Label: {1}'.format(acc, tile_acc_by_label, dataset))
     print('------ {2} Slide-Level Acc: Mean-Pooling: {0:0.4f}, Max-Pooling: {1:0.4f}'.format(mean_pool_acc, max_pool_acc, 
                                                                                              dataset))
+    print('------ {1} Slide-Level Acc (Mean-Pooling) By Label: {0}'.format(slide_acc_by_label, dataset))
     
     del batch,labels
     return total_loss, mean_pool_acc
