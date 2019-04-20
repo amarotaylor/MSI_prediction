@@ -19,14 +19,15 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description='Model training engine for molecular phenotype models from TCGA images')
     
-    parser.add_argument('--Task',help='WGD prediction or MSI (only implemented tasks)', required=True,type=str)
-    parser.add_argument('--GPU', help='GPU device to use for model training', required=True,type=int)
-    parser.add_argument('--n_workers', help='Number of workers to use for dataloaders', required=False, default = 12,type=int)
-    parser.add_argument('--lr',help='Inital learning rate',required = False, default=1e-4,type=float)
-    parser.add_argument('--patience',help='Patience for lr scheduler', required = False, default =10,type=int)
-    parser.add_argument('--model_name',help='Path to place saved model state', required = True,type=str)
-    parser.add_argument('--batch_size',help='Batch size for training and validation loops', required=False,default=264,type=int)
-    parser.add_argument('--epochs',help='Epochs to run training and validation loops', required=False,default=50,type=int)
+    parser.add_argument('--Task',help='WGD prediction or MSI (only implemented tasks)', required=True, type=str)
+    parser.add_argument('--GPU', help='GPU device to use for model training', required=True, type=int)
+    parser.add_argument('--n_workers', help='Number of workers to use for dataloaders', required=False, default = 12, type=int)
+    parser.add_argument('--lr',help='Inital learning rate',required = False, default=1e-4, type=float)
+    parser.add_argument('--patience',help='Patience for lr scheduler', required = False, default=10, type=int)
+    parser.add_argument('--model_name',help='Path to place saved model state', required = True, type=str)
+    parser.add_argument('--batch_size',help='Batch size for training and validation loops',required=False, default=264, type=int)
+    parser.add_argument('--epochs',help='Epochs to run training and validation loops', required=False, default=50, type=int)
+    parser.add_argument('--magnification',help='Magnification level of tiles', required=False, default='5.0', type=str)
     parser.add_argument('--fine_tune_classifier_only',help='Freeze convolutional layers',action='store_true')
     args = parser.parse_args()
     
@@ -50,8 +51,8 @@ def main():
         sa_train, sa_val = data_utils.process_WGD_data()
         output_shape = 1
     
-    train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train)
-    val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val)
+    train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train, magnification=args.magnification)
+    val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val, magnification=args.magnification)
     jpg_to_sample = val_set.jpg_to_sample
     
     # set weights for random sampling of tiles such that batches are class balanced
