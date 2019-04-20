@@ -79,8 +79,8 @@ def main():
     # current WeightedRandomSampler is too slow when replacement = False. 
     # TODO: implement switch to weighted loss or weighted sampler
     sampler = torch.utils.data.sampler.WeightedRandomSampler(reciprocal_weights, len(reciprocal_weights), replacement=True)
-    train_loader = DataLoader(train_set, batch_size=batch_size, pin_memory=False, sampler=sampler, num_workers=args.n_workers)
-    valid_loader = DataLoader(val_set, batch_size=batch_size, pin_memory=False, num_workers=args.n_workers)
+    train_loader = DataLoader(train_set, batch_size=batch_size, pin_memory=True, sampler=sampler, num_workers=args.n_workers)
+    valid_loader = DataLoader(val_set, batch_size=batch_size, pin_memory=True, num_workers=args.n_workers)
     
     learning_rate = args.lr
     # TODO: allow resnet model specification or introduce other model choices
