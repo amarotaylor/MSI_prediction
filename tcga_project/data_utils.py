@@ -9,6 +9,7 @@ from imageio import imread
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, models, transforms, set_image_backend, get_image_backend
 import torch.nn.functional as F
+import pickle
 
 
 max_tiles = 100
@@ -256,3 +257,9 @@ def process_WGD_data():
     sample_annotations_val = sample_annotations
 
     return sample_annotations_train, sample_annotations_val
+
+def load_COAD_train_val_sa_pickle(pickle_file = '/n/tcga_models/resnet18_WGD_10x_sa.pkl'):
+    with open(pickle_file, 'rb') as f: 
+        sa_train, sa_val = pickle.load(f)
+        del sa_train['TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab']
+        return sa_train, sa_val
