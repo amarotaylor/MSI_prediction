@@ -92,7 +92,8 @@ def pad_tensor_up_to(x,H,W,channels_last=True):
 class TCGADataset_tiles(Dataset):
     """TCGA dataset."""
 
-    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification='5.0'):
+    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, 
+                 magnification='5.0', batch_type='tile'):
         """
         Args:
             sample_annot (dict): dictionary of sample names and their respective labels.
@@ -104,30 +105,53 @@ class TCGADataset_tiles(Dataset):
         self.root_dir = root_dir
         self.transform = transform
         self.loader = loader
+        self.magnification = magnification
+        self.batch_type = batch_type
         self.img_dirs = [self.root_dir + sample_name + '.svs/' \
-                         + sample_name + '_files/'+ magnification for sample_name in self.sample_names]
+                         + sample_name + '_files/' + self.magnification for sample_name in self.sample_names]
         self.jpegs = [os.listdir(img_dir) for img_dir in self.img_dirs]
         self.all_jpegs = []
         self.all_labels = []
         self.jpg_to_sample = []
+        self.coords = []
         
         for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs,self.sample_labels,self.jpegs)):
+            sample_coords = []
             for jpeg in l:
                 self.all_jpegs.append(im_dir+'/'+jpeg)
                 self.all_labels.append(label)
                 self.jpg_to_sample.append(idx)
-                          
+                x,y = jpeg[:-5].split('_') # 'X_Y.jpeg'
+                x,y = int(x), int(y)
+                sample_coords.append(torch.tensor([x,y]))
+            self.coords.append(torch.stack(sample_coords))
+                
+            
     def __len__(self):
         return len(self.all_jpegs)
 
     def __getitem__(self, idx):
-        image = self.loader(self.all_jpegs[idx])
-        if self.transform is not None:
-            image = self.transform(image)
-        if image.shape[1] < 256 or image.shape[2] < 256:
-            image = pad_tensor_up_to(image,256,256,channels_last=False)
-                
-        return image, self.all_labels[idx]
+        if self.batch_type == 'tile':
+            image = self.loader(self.all_jpegs[idx])
+            if self.transform is not None:
+                image = self.transform(image)
+            if image.shape[1] < 256 or image.shape[2] < 256:
+                image = pad_tensor_up_to(image,256,256,channels_last=False)
+            return image, self.all_labels[idx]
+        elif self.batch_type == 'slide':
+            slide_tiles = []
+            for im in self.jpegs[idx]:
+                path = self.img_dirs[idx] + '/' + im
+                image = self.loader(path)
+                if self.transform is not None:
+                    image = self.transform(image)
+                if image.shape[1] < 256 or image.shape[2] < 256:
+                    image = pad_tensor_up_to(image,256,256,channels_last=False)
+                slide_tiles.append(image)
+            slide = torch.stack(slide_tiles)
+            label = self.sample_labels[idx]
+            coords = self.coords[idx]
+            return slide, label, coords
     
        
 def process_MSI_data():
