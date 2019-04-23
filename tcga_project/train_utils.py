@@ -107,3 +107,81 @@ def embedding_validation_loop(e, valid_loader, net, criterion, jpg_to_sample,
     
     del batch,labels
     return total_loss, mean_pool_acc
+
+
+def tcga_embedding_training_loop(e, train_loader, resnet, slide_level_classification_layer, criterion, 
+                                 optimizer, pool_fn, slide_batch_size=10, tile_batch_size=256):
+    slide_level_classification_layer.train()
+    
+    total_loss = 0
+    logits_list = []
+    labels_list = []
+    for idx, (image, label, coords) in enumerate(train_loader):
+        if idx % slide_batch_size != 0 or idx == 0:
+            image, label = image.squeeze(0), label.float().cuda()
+            #tiles = torch.utils.data.TensorDataset(image)
+            #tile_loader = DataLoader(tiles, batch_size=tile_batch_size, shuffle=False, pin_memory=True, num_workers=5)
+            #n_batches = image.shape[0] // tile_batch_size + 1   
+            #tile_loader = [image[b*tile_batch_size:(b+1)*tile_batch_size,:,:,:] for b in range(n_batches)]
+            all_emb = []
+            #for tile in tile_loader:
+            if len(image.shape) < 5:
+                image = image.unsqueeze(0)
+            for tile in image:
+                #tile = tile[0].cuda()
+                tile = tile.cuda()
+                emb = resnet(tile)
+                all_emb.append(emb)
+            embed = torch.cat(all_emb)
+            output = pool_fn(embed)
+
+            logits = slide_level_classification_layer(output)
+            logits_list.append(logits)
+            labels_list.append(label)
+        else:
+            loss = criterion(torch.stack(logits_list), torch.stack(labels_list))
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            print('Epoch: {0}, Step: {1}, Train Batch NLL: {2:0.4f}'.format(e, idx, loss.detach().cpu().numpy()))
+            logits_list = []
+            labels_list = []
+            
+
+def tcga_embedding_validation_loop(e, valid_loader, resnet, slide_level_classification_layer, criterion, pool_fn, 
+                                   tile_batch_size=256, scheduler=None, dataset='Val'):
+    slide_level_classification_layer.eval()
+    
+    total_loss = 0
+    all_labels = []
+    all_preds = []
+    
+    with torch.no_grad():
+        for idx, (image, label, coords) in enumerate(valid_loader):
+            image, label = image.squeeze(0), label.float().cuda()
+            tiles = torch.utils.data.TensorDataset(image)
+            tile_loader = DataLoader(tiles, batch_size=tile_batch_size, shuffle=False, pin_memory=True)
+
+            all_emb = []
+            for tile in tile_loader:
+                tile = tile[0].cuda()
+                emb = resnet(tile)
+                all_emb.append(emb)
+            embed = torch.cat(all_emb)
+            output = pool_fn(embed)
+
+            logits = slide_level_classification_layer(output)
+            loss = criterion(logits, label)
+            total_loss += loss.detach().cpu().numpy()
+            all_labels.append(label.float().cpu().numpy())
+            all_preds.append((torch.sigmoid(logits) > 0.5).float().detach().cpu().numpy())
+
+            if idx % 10 == 0:
+                print('Epoch: {0}, Step: {1}, {3} Slide NLL: {2:0.4f}'.format(e, idx, loss.detach().cpu().numpy(), 
+                                                                              dataset))
+                
+    scheduler.step(total_loss)
+    acc = np.mean(np.array(all_labels) == np.array(all_preds))
+    print('Epoch: {0}, {3} Avg NLL: {1:0.4f}, {3} Accuracy: {2:0.4f}'.format(e, total_loss/float(idx+1), 
+                                                                             acc, dataset))
+    return total_loss

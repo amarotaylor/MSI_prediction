@@ -93,7 +93,7 @@ class TCGADataset_tiles(Dataset):
     """TCGA dataset."""
 
     def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, 
-                 magnification='5.0', batch_type='tile'):
+                 magnification='5.0', batch_type='tile', tile_batch_size = 800):
         """
         Args:
             sample_annot (dict): dictionary of sample names and their respective labels.
@@ -114,7 +114,7 @@ class TCGADataset_tiles(Dataset):
         self.all_labels = []
         self.jpg_to_sample = []
         self.coords = []
-        
+        self.tile_batch_size = tile_batch_size
         for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs,self.sample_labels,self.jpegs)):
             sample_coords = []
             for jpeg in l:
@@ -128,7 +128,10 @@ class TCGADataset_tiles(Dataset):
                 
             
     def __len__(self):
-        return len(self.all_jpegs)
+        if self.batch_type == 'tile':
+            return len(self.all_jpegs)
+        elif self.batch_type == 'slide':
+            return len(self.jpegs)
 
     def __getitem__(self, idx):
         if self.batch_type == 'tile':
@@ -140,15 +143,32 @@ class TCGADataset_tiles(Dataset):
             return image, self.all_labels[idx]
         elif self.batch_type == 'slide':
             slide_tiles = []
-            for im in self.jpegs[idx]:
+            tiles_batch = []
+            for tile_num,im in enumerate(self.jpegs[idx]):
                 path = self.img_dirs[idx] + '/' + im
                 image = self.loader(path)
                 if self.transform is not None:
                     image = self.transform(image)
                 if image.shape[1] < 256 or image.shape[2] < 256:
                     image = pad_tensor_up_to(image,256,256,channels_last=False)
-                slide_tiles.append(image)
-            slide = torch.stack(slide_tiles)
+                tiles_batch.append(image)
+                
+                if (tile_num+1) % self.tile_batch_size == 0 :
+                    tiles_batch = torch.stack(tiles_batch)
+                    slide_tiles.append(tiles_batch)
+                    tiles_batch = []
+            # grab last batch
+            tiles_batch = torch.stack(tiles_batch)
+            slide_tiles.append(tiles_batch)
+            if len(slide_tiles) > 1 and len(tiles_batch) < self.tile_batch_size:
+                # drop last batch if smaller than tile batch size
+                # only occurs in slides with more than tile batch size tiles
+                slide_tiles = slide_tiles[:-1]
+            if len(slide_tiles)>1:
+                slide = torch.stack(slide_tiles)
+            else:
+                slide = tiles_batch
+                
             label = self.sample_labels[idx]
             coords = self.coords[idx]
             return slide, label, coords
