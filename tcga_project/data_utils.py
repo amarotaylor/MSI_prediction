@@ -92,7 +92,10 @@ def pad_tensor_up_to(x,H,W,channels_last=True):
     
     
 class TCGADataset_tiles(Dataset):
-    """TCGA dataset."""
+    """TCGA dataset. This dataset treads a middle ground enabling both tile and slide level learning.
+    In tile level mode it returns a bag of tiles each with their own label. 
+    In slide level mode it returns slides in chunks of up to tile_batch_size tiles in order.
+    """
 
     def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, 
                  magnification='5.0', batch_type='tile', tile_batch_size = 800):
@@ -279,6 +282,8 @@ def load_COAD_train_val_sa_pickle(pickle_file = '/n/tcga_models/resnet18_WGD_10x
 class TCGADataset_tiled_slides(Dataset):
     """
     TCGA slide dataset. Each slide is linked to its tiles via a label.
+    This dataset returns a continuous stream of ordered tiles we then split those into update
+    steps stochastically using random sampling
     """
     def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification='5.0'):
         """
@@ -328,3 +333,83 @@ class TCGADataset_tiled_slides(Dataset):
         if image.shape[1] < 256 or image.shape[2] < 256:
             image = pad_tensor_up_to(image,256,256,channels_last=False)
         return image, self.all_labels[idx], self.coords[idx],self.jpg_to_sample[idx]
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+class TCGA_random_tiles_sampler(Dataset):
+    """This data set samples tile_batch_size tiles from each slide and is run such that each
+       slide is a single batch. 
+     """
+
+    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, 
+                 magnification='5.0', tile_batch_size = 256):
+        """
+        Args:
+            sample_annot (dict): dictionary of sample names and their respective labels.
+            root_dir (string): directory containing all of the samples and their respective images.
+            transform (callable, optional): optional transform to be applied on the images of a sample.
+        """
+        self.sample_names = list(sample_annotations.keys())
+        self.sample_labels = list(sample_annotations.values())
+        self.root_dir = root_dir
+        self.transform = transform
+        self.loader = loader
+        self.magnification = magnification
+        self.img_dirs = [self.root_dir + sample_name + '.svs/' \
+                         + sample_name + '_files/' + self.magnification for sample_name in self.sample_names]
+        self.jpegs = [os.listdir(img_dir) for img_dir in self.img_dirs]
+        self.all_jpegs = []
+        self.all_labels = []
+        self.jpg_to_sample = []
+        self.coords = []
+        self.tile_batch_size = tile_batch_size
+        for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs,self.sample_labels,self.jpegs)):
+            sample_coords = []
+            for jpeg in l:
+                self.all_jpegs.append(im_dir+'/'+jpeg)
+                self.all_labels.append(label)
+                self.jpg_to_sample.append(idx)
+                x,y = jpeg[:-5].split('_') # 'X_Y.jpeg'
+                x,y = int(x), int(y)
+                sample_coords.append(torch.tensor([x,y]))
+            self.coords.append(torch.stack(sample_coords))
+                
+            
+    def __len__(self):
+        ''' number of slides: jpegs is a list of lists '''
+        return len(self.jpegs)
+
+    def __getitem__(self, idx):
+        slide_tiles = []
+        tiles_batch = []
+        perm = torch.randperm(len(self.jpegs[idx]))
+        
+        if len(self.jpegs[idx]) > self.tile_batch_size:
+            idxs = perm[:self.tile_batch_size]
+        else: 
+            idxs = range(len(self.jpegs[idx]))
+            
+        for tile_num in idxs:
+            im = self.jpegs[idx][tile_num]
+            path = self.img_dirs[idx] + '/' + im
+            image = self.loader(path)
+            
+            if self.transform is not None:
+                image = self.transform(image)
+            if image.shape[1] < 256 or image.shape[2] < 256:
+                image = pad_tensor_up_to(image,256,256,channels_last=False)
+            tiles_batch.append(image)
+
+        # create batch of random tiles
+        slide = torch.stack(tiles_batch)
+
+        label = self.sample_labels[idx]
+        coords = torch.stack([self.coords[idx][i] for i in idxs])
+        return slide, label, coords
