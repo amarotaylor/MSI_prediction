@@ -11,6 +11,7 @@ from torchvision import datasets, models, transforms, set_image_backend, get_ima
 import torch.nn.functional as F
 import pickle
 
+set_image_backend('accimage')
 
 max_tiles = 100
 root_dir_coad = '/n/mounted-data-drive/COAD/'
@@ -263,3 +264,67 @@ def load_COAD_train_val_sa_pickle(pickle_file = '/n/tcga_models/resnet18_WGD_10x
         sa_train, sa_val = pickle.load(f)
         del sa_train['TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab']
         return sa_train, sa_val
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+class TCGADataset_tiled_slides(Dataset):
+    """
+    TCGA slide dataset. Each slide is linked to its tiles via a label.
+    """
+    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification='5.0'):
+        """
+        Args:
+            sample_annot (dict): dictionary of sample names and their respective labels.
+            root_dir (string): directory containing all of the samples and their respective images.
+            transform (callable, optional): optional transform to be applied on the images of a sample.
+            loader specifies image backend: use accimage
+            magnification: tile magnification
+        """
+        self.sample_names = list(sample_annotations.keys())
+        self.sample_labels = list(sample_annotations.values())
+        
+        self.root_dir = root_dir
+        self.transform = transform
+        self.loader = loader
+        self.magnification = magnification
+        self.img_dirs = [self.root_dir + sample_name + '.svs/' \
+                         + sample_name + '_files/' + self.magnification for sample_name in self.sample_names]
+        self.jpegs = [os.listdir(img_dir) for img_dir in self.img_dirs]
+        self.all_jpegs = []
+        self.all_labels = []
+        self.jpg_to_sample = []
+        self.coords = []
+        
+        for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs,self.sample_labels,self.jpegs)):
+            sample_coords = []
+            for jpeg in l:
+                # build tile dataset
+                self.all_jpegs.append(im_dir+'/'+jpeg)
+                # label for each tile
+                self.all_labels.append(label)
+                # tracks slide membership at a tile level
+                self.jpg_to_sample.append(idx)
+                # store tile coordinates
+                x,y = jpeg[:-5].split('_') # 'X_Y.jpeg'
+                x,y = int(x), int(y)
+                self.coords.append(torch.tensor([x,y]))
+            
+    def __len__(self):
+        return len(self.all_jpegs)
+        
+    def __getitem__(self, idx):
+        image = self.loader(self.all_jpegs[idx])
+        if self.transform is not None:
+            image = self.transform(image)
+        if image.shape[1] < 256 or image.shape[2] < 256:
+            image = pad_tensor_up_to(image,256,256,channels_last=False)
+        return image, self.all_labels[idx], self.coords[idx],self.jpg_to_sample[idx]

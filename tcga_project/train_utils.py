@@ -185,3 +185,108 @@ def tcga_embedding_validation_loop(e, valid_loader, resnet, slide_level_classifi
     print('Epoch: {0}, {3} Avg NLL: {1:0.4f}, {3} Accuracy: {2:0.4f}'.format(e, total_loss/float(idx+1), 
                                                                              acc, dataset))
     return total_loss
+
+
+
+
+def tcga_tiled_slides_training_loop(e, train_loader, resnet, 
+                                    slide_level_classification_layer, criterion, 
+                                 optimizer, pool_fn,device='cuda:0',train_set=None):
+    # track number of slides seen
+    p_update = torch.tensor(0.,device=device)
+    slide_level_classification_layer.train()
+    # store embeddings, labels, and memberships
+    embeddings = []
+    slide_membership = []
+    step = 0
+    batches = 0
+    slide_labels = torch.tensor(train_set.sample_labels, device=device)
+    for batch,labels,coords,idxs in train_loader:
+        # get embeddings
+        batch,labels,coords,idxs = batch.cuda(),labels.cuda(),coords.cuda(),idxs.cuda()
+        if len(embeddings) == 0:
+            current_slide = torch.min(idxs)
+        # append each batched results
+        embeddings.extend(resnet(batch))
+        slide_membership.extend(idxs)
+
+        p_update += 0.00001
+        batches+=1
+
+        if torch.rand(1,device=device) < p_update:
+            slide_membership = torch.stack(slide_membership)
+            slides = torch.unique(slide_membership,sorted=True)
+            embeddings = torch.stack(embeddings)
+            labels = torch.index_select(slide_labels,0,slides)
+            pooled = torch.stack([pool_fn(
+                    torch.masked_select(
+                        embeddings,(slide_membership == slide).view(-1,1)
+                    ).view(-1,2048)) for slide in slides])
+            logits = slide_level_classification_layer(pooled)
+            loss = criterion(logits,labels.float().view(-1,1))    
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()    
+            embeddings = []
+            print('Epoch: {0}, Step: {1}, Slide Number: {2}, Train Batch NLL: {3:0.4f}'.format(e, step, torch.max(slide_membership).detach().cpu().numpy(), loss.detach().cpu().numpy()))
+
+            slide_membership = []
+            step+=1
+            batches = 0
+            p_update = torch.tensor(0.,device=device)
+    slide_membership = torch.stack(slide_membership)
+    slides = torch.unique(slide_membership,sorted=True)
+    embeddings = torch.stack(embeddings)
+    labels = torch.index_select(slide_labels,0,slides)
+    pooled = torch.stack([pool_fn(
+                    torch.masked_select(
+                        embeddings,(slide_membership == slide).view(-1,1)
+                    ).view(-1,2048)) for slide in slides])
+    logits = slide_level_classification_layer(pooled)
+    loss = criterion(logits,labels.float().view(-1,1))
+    loss.backward()
+    optimizer.step()
+    optimizer.zero_grad() 
+    print('Epoch: {0}, Step: {1}, Slide Number: {2}, Train Batch NLL: {3:0.4f}'.format(e, step, torch.max(slide_membership).detach().cpu().numpy(), loss.detach().cpu().numpy()))
+
+    
+    
+def tcga_tiled_slides_validation_loop(e, val_loader, resnet, 
+                                    slide_level_classification_layer, criterion, 
+                                 scheduler, pool_fn,device='cuda:0',val_set=None):
+    slide_level_classification_layer.eval()
+    with torch.no_grad():
+        # store embeddings, labels, and memberships
+        embeddings = []
+        slide_membership = []
+        step = 0
+        batches = 0
+        slide_labels = torch.tensor(val_set.sample_labels, device=device)
+        for batch,labels,coords,idxs in val_loader:
+            # get embeddings
+            batch,labels,coords,idxs = batch.cuda(),labels.cuda(),coords.cuda(),idxs.cuda()
+            if len(embeddings) == 0:
+                current_slide = torch.min(idxs)
+            # append each batched results
+            embeddings.extend(resnet(batch))
+            slide_membership.extend(idxs)
+
+
+
+        slide_membership = torch.stack(slide_membership)
+        slides = torch.unique(slide_membership,sorted=True)
+        embeddings = torch.stack(embeddings)
+        labels = torch.index_select(slide_labels,0,slides)
+        pooled = torch.stack([pool_fn(
+                        torch.masked_select(
+                            embeddings,(slide_membership == slide).view(-1,1)
+                        ).view(-1,2048)) for slide in slides])
+        logits = slide_level_classification_layer(pooled)
+        loss = criterion(logits,labels.float().view(-1,1))
+        all_preds = (torch.sigmoid(logits) > 0.5).float().detach().cpu().numpy()
+        acc = np.mean(labels.detach().cpu().numpy() == all_preds)
+        scheduler.step(loss)
+        del embeddings
+        del slide_membership
+        print('Epoch: {0}, Step: {1}, Slide Number: {2}, Val Avg NLL: {3:0.4f}, Val Accuracy: {4:0.2f}'.format(e, step, torch.max(slide_membership).detach().cpu().numpy(), loss.detach().cpu().numpy()/torch.max(slide_membership).detach().cpu().numpy(),acc))
+        return loss, acc
