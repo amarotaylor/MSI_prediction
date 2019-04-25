@@ -33,9 +33,9 @@ root_dir_coad = '/n/mounted-data-drive/COAD/'
 
 
 
-sa_train, sa_val = data_utils.load_COAD_train_val_sa_pickle()
+sa_train, sa_val = data_utils.load_COAD_train_val_sa_pickle('/n/tcga_models/resnet18_WGD_v04_sa.pkl')
 root_dir = '/n/mounted-data-drive/COAD/'
-magnification = '10.0'
+magnification = '5.0'
 batch_type = 'slide'
 
 train_transform = train_utils.transform_train
@@ -51,7 +51,7 @@ val_set = data_utils.TCGADataset_tiled_slides(sa_val, root_dir, transform=val_tr
 val_loader = DataLoader(val_set, batch_size=256, pin_memory=True, num_workers=32)
 
 
-state_dict_file = '/n/tcga_models/resnet18_WGD_10x.pt'
+state_dict_file = '/n/tcga_models/resnet18_WGD_v04.pt'
 device = torch.device('cuda', 0)
 output_shape = 1
 

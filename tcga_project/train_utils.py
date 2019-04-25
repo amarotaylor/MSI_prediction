@@ -191,7 +191,7 @@ def tcga_embedding_validation_loop(e, valid_loader, resnet, slide_level_classifi
 
 def tcga_tiled_slides_training_loop(e, train_loader, resnet, 
                                     slide_level_classification_layer, criterion, 
-                                 optimizer, pool_fn,device='cuda:0',train_set=None):
+                                 optimizer, pool_fn,device='cuda:0',train_set=None,p_step =0.0001):
     # track number of slides seen
     p_update = torch.tensor(0.,device=device)
     slide_level_classification_layer.train()
@@ -210,7 +210,7 @@ def tcga_tiled_slides_training_loop(e, train_loader, resnet,
         embeddings.extend(resnet(batch))
         slide_membership.extend(idxs)
 
-        p_update += 0.00001
+        p_update += p_step
         batches+=1
 
         if torch.rand(1,device=device) < p_update:
@@ -248,7 +248,7 @@ def tcga_tiled_slides_training_loop(e, train_loader, resnet,
     optimizer.step()
     optimizer.zero_grad() 
     print('Epoch: {0}, Step: {1}, Slide Number: {2}, Train Batch NLL: {3:0.4f}'.format(e, step, torch.max(slide_membership).detach().cpu().numpy(), loss.detach().cpu().numpy()))
-
+    del slide_membership, embeddings, labels, pooled, slides, batch, coords
     
     
 def tcga_tiled_slides_validation_loop(e, val_loader, resnet, 
@@ -286,7 +286,7 @@ def tcga_tiled_slides_validation_loop(e, val_loader, resnet,
         all_preds = (torch.sigmoid(logits) > 0.5).float().detach().cpu().numpy()
         acc = np.mean(labels.detach().cpu().numpy() == all_preds)
         scheduler.step(loss)
-        del embeddings
-        del slide_membership
-        print('Epoch: {0}, Step: {1}, Slide Number: {2}, Val Avg NLL: {3:0.4f}, Val Accuracy: {4:0.2f}'.format(e, step, torch.max(slide_membership).detach().cpu().numpy(), loss.detach().cpu().numpy()/torch.max(slide_membership).detach().cpu().numpy(),acc))
+        print('Epoch: {0}, Step: {1}, Slide Number: {2}, Val Avg NLL: {3:0.4f}, Val Accuracy: {4:0.2f}'.format(e, step, torch.max(slide_membership).detach().cpu().numpy(), loss.detach().cpu().numpy(),acc))
+        del slide_membership, embeddings, labels, pooled, slides, batch, coords
+
         return loss, acc
