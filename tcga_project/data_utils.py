@@ -12,7 +12,6 @@ import torch.nn.functional as F
 import pickle
 
 set_image_backend('accimage')
-
 max_tiles = 100
 root_dir_coad = '/n/mounted-data-drive/COAD/'
 
@@ -98,7 +97,7 @@ class TCGADataset_tiles(Dataset):
     """
 
     def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, 
-                 magnification='5.0', batch_type='tile', tile_batch_size = 800):
+                 magnification='5.0', batch_type='tile', tile_batch_size=800):
         """
         Args:
             sample_annot (dict): dictionary of sample names and their respective labels.
@@ -130,8 +129,7 @@ class TCGADataset_tiles(Dataset):
                 x,y = int(x), int(y)
                 sample_coords.append(torch.tensor([x,y]))
             self.coords.append(torch.stack(sample_coords))
-                
-            
+                 
     def __len__(self):
         if self.batch_type == 'tile':
             return len(self.all_jpegs)
@@ -227,22 +225,20 @@ def process_MSI_data():
     return sample_annotations_train, sample_annotations_val
     
     
-def process_WGD_data():
-    root_dir = '/n/mounted-data-drive/COAD/'
-    wgd_path = 'COAD_WGD_TABLE.xls'
-    wgd_raw = pd.read_excel(wgd_path)
-    sample_name = wgd_raw['Sample'][0]
+def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_path='COAD_WGD_TABLE.xls', wgd_raw=None):
+    if wgd_path is not None:
+        wgd_raw = pd.read_excel(wgd_path)
+    sample_name = wgd_raw.index[0]
     name_len = len(sample_name)
-    coad_full_name = os.listdir(root_dir)
+    coad_full_name = os.listdir(root_dir + cancer_type)
     coad_img = np.array([v[0:name_len] for v in coad_full_name])
-    coad_both = np.intersect1d(coad_img, wgd_raw.Sample)
+    coad_both = np.intersect1d(coad_img, wgd_raw.index)
     sample_names = []
     
     for sample in coad_both:
         key = np.argwhere(coad_img == sample).squeeze()
         if key.size != 0:
             sample_names.append(coad_full_name[key][:-4])
-    wgd_raw.set_index('Sample', inplace=True)
     reorder = np.random.permutation(len(sample_names))
     idx = int(np.floor(len(sample_names)*0.8))
     train = reorder[:idx]
@@ -262,11 +258,16 @@ def process_WGD_data():
 
     return sample_annotations_train, sample_annotations_val
 
-def load_COAD_train_val_sa_pickle(pickle_file = '/n/tcga_models/resnet18_WGD_10x_sa.pkl'):
+
+def load_COAD_train_val_sa_pickle(pickle_file='/n/tcga_models/resnet18_WGD_10x_sa.pkl', return_all_cancers=False):
     with open(pickle_file, 'rb') as f: 
-        sa_train, sa_val = pickle.load(f)
-        del sa_train['TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab']
-        return sa_train, sa_val
+        if return_all_cancers:
+            batch_all, sa_trains, sa_vals = pickle.load(f)
+            return batch_all, sa_trains, sa_vals
+        else:
+            sa_train, sa_val = pickle.load(f)
+            del sa_train['TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab']
+            return sa_train, sa_val
     
     
     
