@@ -97,7 +97,7 @@ class TCGADataset_tiles(Dataset):
     """
 
     def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, 
-                 magnification='5.0', batch_type='tile', tile_batch_size = 800):
+                 magnification='5.0', batch_type='tile', tile_batch_size=800):
         """
         Args:
             sample_annot (dict): dictionary of sample names and their respective labels.
@@ -259,11 +259,15 @@ def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_
     return sample_annotations_train, sample_annotations_val
 
 
-def load_COAD_train_val_sa_pickle(pickle_file = '/n/tcga_models/resnet18_WGD_10x_sa.pkl'):
+def load_COAD_train_val_sa_pickle(pickle_file='/n/tcga_models/resnet18_WGD_10x_sa.pkl', return_all_cancers=False):
     with open(pickle_file, 'rb') as f: 
-        sa_train, sa_val = pickle.load(f)
-        del sa_train['TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab']
-        return sa_train, sa_val
+        if return_all_cancers:
+            batch_all, sa_trains, sa_vals = pickle.load(f)
+            return batch_all, sa_trains, sa_vals
+        else:
+            sa_train, sa_val = pickle.load(f)
+            del sa_train['TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab']
+            return sa_train, sa_val
     
     
     
