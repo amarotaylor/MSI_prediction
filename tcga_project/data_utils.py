@@ -119,16 +119,17 @@ class TCGADataset_tiles(Dataset):
         self.jpg_to_sample = []
         self.coords = []
         self.tile_batch_size = tile_batch_size
+        
         for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs, self.sample_labels, self.jpegs)):
-            sample_coords = []
+            #sample_coords = []
             for jpeg in l:
                 self.all_jpegs.append(im_dir + '/' + jpeg)
                 self.all_labels.append(label)
                 self.jpg_to_sample.append(idx)
-                x,y = jpeg[:-5].split('_') # 'X_Y.jpeg'
-                x,y = int(x), int(y)
-                sample_coords.append(torch.tensor([x,y]))
-            self.coords.append(torch.stack(sample_coords))
+                #x,y = jpeg[:-5].split('_') # 'X_Y.jpeg'
+                #x,y = int(x), int(y)
+                #sample_coords.append(torch.tensor([x,y]))
+            #self.coords.append(torch.stack(sample_coords))
         
     def __len__(self):
         if self.batch_type == 'tile':
