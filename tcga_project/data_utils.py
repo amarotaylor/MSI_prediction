@@ -110,7 +110,7 @@ class TCGADataset_tiles(Dataset):
         self.transform = transform
         self.loader = loader
         self.magnification = magnification
-        self.batch_type = batch_type
+        self.batch_type = batch_type    
         self.img_dirs = [self.root_dir + sample_name + '.svs/' \
                          + sample_name + '_files/' + self.magnification for sample_name in self.sample_names]
         self.jpegs = [os.listdir(img_dir) for img_dir in self.img_dirs]
@@ -119,17 +119,17 @@ class TCGADataset_tiles(Dataset):
         self.jpg_to_sample = []
         self.coords = []
         self.tile_batch_size = tile_batch_size
-        for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs,self.sample_labels,self.jpegs)):
+        for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs, self.sample_labels, self.jpegs)):
             sample_coords = []
             for jpeg in l:
-                self.all_jpegs.append(im_dir+'/'+jpeg)
+                self.all_jpegs.append(im_dir + '/' + jpeg)
                 self.all_labels.append(label)
                 self.jpg_to_sample.append(idx)
                 x,y = jpeg[:-5].split('_') # 'X_Y.jpeg'
                 x,y = int(x), int(y)
                 sample_coords.append(torch.tensor([x,y]))
             self.coords.append(torch.stack(sample_coords))
-                 
+        
     def __len__(self):
         if self.batch_type == 'tile':
             return len(self.all_jpegs)
@@ -154,8 +154,7 @@ class TCGADataset_tiles(Dataset):
                     image = self.transform(image)
                 if image.shape[1] < 256 or image.shape[2] < 256:
                     image = pad_tensor_up_to(image,256,256,channels_last=False)
-                tiles_batch.append(image)
-                
+                tiles_batch.append(image)                
                 if (tile_num+1) % self.tile_batch_size == 0 :
                     tiles_batch = torch.stack(tiles_batch)
                     slide_tiles.append(tiles_batch)
@@ -170,8 +169,7 @@ class TCGADataset_tiles(Dataset):
             if len(slide_tiles)>1:
                 slide = torch.stack(slide_tiles)
             else:
-                slide = tiles_batch
-                
+                slide = tiles_batch                
             label = self.sample_labels[idx]
             coords = self.coords[idx]
             return slide, label, coords
@@ -226,6 +224,7 @@ def process_MSI_data():
     
     
 def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_path='COAD_WGD_TABLE.xls', wgd_raw=None):
+    # updated to generalize across cancer types
     if wgd_path is not None:
         wgd_raw = pd.read_excel(wgd_path)
     sample_name = wgd_raw.index[0]
@@ -233,8 +232,15 @@ def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_
     coad_full_name = os.listdir(root_dir + cancer_type)
     coad_img = np.array([v[0:name_len] for v in coad_full_name])
     coad_both = np.intersect1d(coad_img, wgd_raw.index)
-    sample_names = []
     
+    if cancer_type[-1:] == 'x':
+        num_labels = np.sum(wgd_raw['Type'].isin([cancer_type.split('_')[0]]))
+    else:
+        num_labels = np.sum(wgd_raw['Type'].isin([cancer_type]))
+    print('{0:<8}  Num Images: {1:>5,d}  Num Labels: {2:>5,d}  Overlap: {3:>5,d}'.format(cancer_type, len(coad_img), 
+                                                                                         num_labels, len(coad_both)))
+    
+    sample_names = []
     for sample in coad_both:
         key = np.argwhere(coad_img == sample).squeeze()
         if key.size != 0:
@@ -297,7 +303,6 @@ class TCGADataset_tiled_slides(Dataset):
         """
         self.sample_names = list(sample_annotations.keys())
         self.sample_labels = list(sample_annotations.values())
-        
         self.root_dir = root_dir
         self.transform = transform
         self.loader = loader
@@ -310,7 +315,7 @@ class TCGADataset_tiled_slides(Dataset):
         self.jpg_to_sample = []
         self.coords = []
         
-        for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs,self.sample_labels,self.jpegs)):
+        for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs, self.sample_labels, self.jpegs)):
             sample_coords = []
             for jpeg in l:
                 # build tile dataset
@@ -333,7 +338,7 @@ class TCGADataset_tiled_slides(Dataset):
             image = self.transform(image)
         if image.shape[1] < 256 or image.shape[2] < 256:
             image = pad_tensor_up_to(image,256,256,channels_last=False)
-        return image, self.all_labels[idx], self.coords[idx],self.jpg_to_sample[idx]
+        return image, self.all_labels[idx], self.coords[idx], self.jpg_to_sample[idx]
     
     
     
