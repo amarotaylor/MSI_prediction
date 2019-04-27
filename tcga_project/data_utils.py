@@ -16,6 +16,7 @@ max_tiles = 100
 root_dir_coad = '/n/mounted-data-drive/COAD/'
 root_dir_all = '/n/mounted-data-drive/'
 
+
 def pil_loader(path):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
     with open(path, 'rb') as f:
@@ -180,6 +181,14 @@ class TCGADataset_tiles(Dataset):
             return slide, label, coords
     
        
+def get_sample_annotations(sample_names, sample_idxs, df_raw, name_len, col_name):
+    sample_annotations = {}
+    sample_names = np.array(sample_names)
+    for sample_name in sample_names[sample_idxs]:
+        sample_annotations[sample_name] = df_raw.loc[sample_name[0:name_len], col_name]
+    return sample_annotations
+
+
 def process_MSI_data():
     root_dir = '/n/mounted-data-drive/COAD/'
     msi_path = 'COAD_MSI_CLASS.csv'
@@ -194,7 +203,8 @@ def process_MSI_data():
         else:
             msi_label[i]='MSS'
     b, c = np.unique(msi_label, return_inverse=True)
-    msi_label = 2 - c     
+    msi_label = 2 - c   
+    
     sample_name = msi_raw.iloc[-1]['barcode']
     name_len = len(sample_name)
     coad_full_name = os.listdir(root_dir)
@@ -208,43 +218,33 @@ def process_MSI_data():
             sample_names.append(coad_full_name[key][:-4])
     msi_raw.set_index('barcode', inplace=True)
     reorder = np.random.permutation(len(sample_names))
-    train = reorder[:int(np.floor(len(sample_names)*0.8))]
-    val = reorder[int(np.floor(len(sample_names)*0.8)):]
     
-    sample_annotations = {}
-    sample_names = np.array(sample_names)
-    msi_raw['MSI.int'] = msi_label
-    for sample_name in sample_names[train]:
-        sample_annotations[sample_name] = msi_raw.loc[sample_name[0:name_len], 'MSI.int']
-    sample_annotations_train = sample_annotations
-    
-    sample_annotations = {}
-    sample_names = np.array(sample_names)
-    msi_raw['MSI.int'] = msi_label
-    for sample_name in sample_names[val]:
-        sample_annotations[sample_name] = msi_raw.loc[sample_name[0:name_len], 'MSI.int']
-    sample_annotations_val = sample_annotations
-    
-    return sample_annotations_train, sample_annotations_val
-    
-    
+    col_name = 'MSI.int'
+    msi_raw[col_name] = msi_label
+    idx = int(np.floor(len(sample_names)*0.8))
+    train = reorder[:idx]
+    val = reorder[idx:]        
+    sample_annotations_train = get_sample_annotations(sample_names, train, msi_raw, name_len, col_name)        
+    sample_annotations_val = get_sample_annotations(sample_names, val, msi_raw, name_len, col_name)        
+    return sample_annotations_train, sample_annotations_val        
+
+
 def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_path='COAD_WGD_TABLE.xls', 
                      wgd_raw=None, split_in_two=False, print_overlap=False):
-    # updated to generalize across cancer types
+    # note: flexible across cancer types, e.g., coad vars can be for brca
     if wgd_path is not None:
         wgd_raw = pd.read_excel(wgd_path)
     sample_name = wgd_raw.index[0]
     name_len = len(sample_name)
     coad_full_name = os.listdir(root_dir + cancer_type)
     coad_img = np.array([v[0:name_len] for v in coad_full_name])
-    coad_both = np.intersect1d(coad_img, wgd_raw.index)
-    
-    if cancer_type[-1:] == 'x':
-        num_labels = np.sum(wgd_raw['Type'].isin([cancer_type.split('_')[0]]))
-    else:
-        num_labels = np.sum(wgd_raw['Type'].isin([cancer_type]))
+    coad_both = np.intersect1d(coad_img, wgd_raw.index)        
         
     if print_overlap:
+        if cancer_type[-1:] == 'x':
+            num_labels = np.sum(wgd_raw['Type'].isin([cancer_type.split('_')[0]]))
+        else:
+            num_labels = np.sum(wgd_raw['Type'].isin([cancer_type]))
         print('{0:<8}  Num Images: {1:>5,d}  Num Labels: {2:>5,d}  Overlap: {3:>5,d}'.format(cancer_type, len(coad_img),
                                                                                              num_labels, len(coad_both)))    
     sample_names = []
@@ -254,56 +254,25 @@ def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_
             sample_names.append(coad_full_name[key][:-4])
     reorder = np.random.permutation(len(sample_names))
     
+    col_name = 'Genome_doublings'
     if split_in_two:
         idx1 = int(np.floor(len(sample_names)*0.4))
         idx2 = int(np.floor(len(sample_names)*0.1))
         train1 = reorder[:idx1]
         val1 = reorder[idx1:(idx1+idx2)]
         train2 = reorder[(idx1+idx2):(idx1+idx2+idx1)]
-        val2 = reorder[(idx1+idx2+idx1):]
-        
-        sample_annotations = {}
-        sample_names = np.array(sample_names)
-        for sample_name in sample_names[train1]:
-            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
-        sample_annotations_train1 = sample_annotations
-        
-        sample_annotations = {}
-        sample_names = np.array(sample_names)
-        for sample_name in sample_names[val1]:
-            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
-        sample_annotations_val1 = sample_annotations
-        
-        sample_annotations = {}
-        sample_names = np.array(sample_names)
-        for sample_name in sample_names[train2]:
-            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
-        sample_annotations_train2 = sample_annotations
-        
-        sample_annotations = {}
-        sample_names = np.array(sample_names)
-        for sample_name in sample_names[val2]:
-            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
-        sample_annotations_val2 = sample_annotations
-        
+        val2 = reorder[(idx1+idx2+idx1):]                
+        sample_annotations_train1 = get_sample_annotations(sample_names, train1, wgd_raw, name_len, col_name)                
+        sample_annotations_val1 = get_sample_annotations(sample_names, val1, wgd_raw, name_len, col_name)               
+        sample_annotations_train2 = get_sample_annotations(sample_names, train2, wgd_raw, name_len, col_name)                
+        sample_annotations_val2 = get_sample_annotations(sample_names, val2, wgd_raw, name_len, col_name)        
         return sample_annotations_train1, sample_annotations_val1, sample_annotations_train2, sample_annotations_val2
     else:
         idx = int(np.floor(len(sample_names)*0.8))
         train = reorder[:idx]
-        val = reorder[idx:]
-
-        sample_annotations = {}
-        sample_names = np.array(sample_names)
-        for sample_name in sample_names[train]:
-            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
-        sample_annotations_train = sample_annotations
-
-        sample_annotations = {}
-        sample_names = np.array(sample_names)
-        for sample_name in sample_names[val]:
-            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
-        sample_annotations_val = sample_annotations
-
+        val = reorder[idx:]        
+        sample_annotations_train = get_sample_annotations(sample_names, train, wgd_raw, name_len, col_name)        
+        sample_annotations_val = get_sample_annotations(sample_names, val, wgd_raw, name_len, col_name)
         return sample_annotations_train, sample_annotations_val
 
 
@@ -321,8 +290,6 @@ def load_COAD_train_val_sa_pickle(pickle_file='/n/tcga_models/resnet18_WGD_10x_s
             sa_train, sa_val = pickle.load(f)
             del sa_train['TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab']
             return sa_train, sa_val
-    
-    
     
     
     
@@ -452,8 +419,7 @@ class TCGA_random_tiles_sampler(Dataset):
         for tile_num in idxs:
             im = self.jpegs[idx][tile_num]
             path = self.img_dirs[idx] + '/' + im
-            image = self.loader(path)
-            
+            image = self.loader(path)            
             if self.transform is not None:
                 image = self.transform(image)
             if image.shape[1] < 256 or image.shape[2] < 256:
@@ -462,7 +428,6 @@ class TCGA_random_tiles_sampler(Dataset):
 
         # create batch of random tiles
         slide = torch.stack(tiles_batch)
-
         label = self.sample_labels[idx]
         coords = torch.stack([self.coords[idx][i] for i in idxs])
         return slide, label, coords
