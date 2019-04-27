@@ -14,7 +14,7 @@ import pickle
 set_image_backend('accimage')
 max_tiles = 100
 root_dir_coad = '/n/mounted-data-drive/COAD/'
-
+root_dir_all = '/n/mounted-data-drive/'
 
 def pil_loader(path):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
@@ -96,8 +96,8 @@ class TCGADataset_tiles(Dataset):
     In slide level mode it returns slides in chunks of up to tile_batch_size tiles in order.
     """
 
-    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, 
-                 magnification='5.0', batch_type='tile', tile_batch_size=800):
+    def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification='5.0', 
+                 batch_type='tile', tile_batch_size=800, all_cancers=False, cancer_type=None):
         """
         Args:
             sample_annot (dict): dictionary of sample names and their respective labels.
@@ -111,8 +111,12 @@ class TCGADataset_tiles(Dataset):
         self.loader = loader
         self.magnification = magnification
         self.batch_type = batch_type    
-        self.img_dirs = [self.root_dir + sample_name + '.svs/' \
-                         + sample_name + '_files/' + self.magnification for sample_name in self.sample_names]
+        if all_cancers:
+            self.img_dirs = [self.root_dir + cancer_type[idx] + '/' + sample_name + '.svs/' \
+                            + sample_name + '_files/' + self.magnification for idx,sample_name in enumerate(self.sample_names)]
+        else:
+            self.img_dirs = [self.root_dir + sample_name + '.svs/' \
+                             + sample_name + '_files/' + self.magnification for sample_name in self.sample_names]
         self.jpegs = [os.listdir(img_dir) for img_dir in self.img_dirs]
         self.all_jpegs = []
         self.all_labels = []
@@ -224,7 +228,8 @@ def process_MSI_data():
     return sample_annotations_train, sample_annotations_val
     
     
-def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_path='COAD_WGD_TABLE.xls', wgd_raw=None):
+def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_path='COAD_WGD_TABLE.xls', 
+                     wgd_raw=None, split_in_two=False, print_overlap=False):
     # updated to generalize across cancer types
     if wgd_path is not None:
         wgd_raw = pd.read_excel(wgd_path)
@@ -238,39 +243,80 @@ def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_
         num_labels = np.sum(wgd_raw['Type'].isin([cancer_type.split('_')[0]]))
     else:
         num_labels = np.sum(wgd_raw['Type'].isin([cancer_type]))
-    print('{0:<8}  Num Images: {1:>5,d}  Num Labels: {2:>5,d}  Overlap: {3:>5,d}'.format(cancer_type, len(coad_img), 
-                                                                                         num_labels, len(coad_both)))
-    
+        
+    if print_overlap:
+        print('{0:<8}  Num Images: {1:>5,d}  Num Labels: {2:>5,d}  Overlap: {3:>5,d}'.format(cancer_type, len(coad_img),
+                                                                                             num_labels, len(coad_both)))    
     sample_names = []
     for sample in coad_both:
         key = np.argwhere(coad_img == sample).squeeze()
         if key.size != 0:
             sample_names.append(coad_full_name[key][:-4])
     reorder = np.random.permutation(len(sample_names))
-    idx = int(np.floor(len(sample_names)*0.8))
-    train = reorder[:idx]
-    val = reorder[idx:]
+    
+    if split_in_two:
+        idx1 = int(np.floor(len(sample_names)*0.4))
+        idx2 = int(np.floor(len(sample_names)*0.1))
+        train1 = reorder[:idx1]
+        val1 = reorder[idx1:(idx1+idx2)]
+        train2 = reorder[(idx1+idx2):(idx1+idx2+idx1)]
+        val2 = reorder[(idx1+idx2+idx1):]
+        
+        sample_annotations = {}
+        sample_names = np.array(sample_names)
+        for sample_name in sample_names[train1]:
+            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
+        sample_annotations_train1 = sample_annotations
+        
+        sample_annotations = {}
+        sample_names = np.array(sample_names)
+        for sample_name in sample_names[val1]:
+            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
+        sample_annotations_val1 = sample_annotations
+        
+        sample_annotations = {}
+        sample_names = np.array(sample_names)
+        for sample_name in sample_names[train2]:
+            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
+        sample_annotations_train2 = sample_annotations
+        
+        sample_annotations = {}
+        sample_names = np.array(sample_names)
+        for sample_name in sample_names[val2]:
+            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
+        sample_annotations_val2 = sample_annotations
+        
+        return sample_annotations_train1, sample_annotations_val1, sample_annotations_train2, sample_annotations_val2
+    else:
+        idx = int(np.floor(len(sample_names)*0.8))
+        train = reorder[:idx]
+        val = reorder[idx:]
 
-    sample_annotations = {}
-    sample_names = np.array(sample_names)
-    for sample_name in sample_names[train]:
-        sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
-    sample_annotations_train = sample_annotations
+        sample_annotations = {}
+        sample_names = np.array(sample_names)
+        for sample_name in sample_names[train]:
+            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
+        sample_annotations_train = sample_annotations
 
-    sample_annotations = {}
-    sample_names = np.array(sample_names)
-    for sample_name in sample_names[val]:
-        sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
-    sample_annotations_val = sample_annotations
+        sample_annotations = {}
+        sample_names = np.array(sample_names)
+        for sample_name in sample_names[val]:
+            sample_annotations[sample_name] = wgd_raw.loc[sample_name[0:name_len], 'Genome_doublings']
+        sample_annotations_val = sample_annotations
 
-    return sample_annotations_train, sample_annotations_val
+        return sample_annotations_train, sample_annotations_val
 
 
-def load_COAD_train_val_sa_pickle(pickle_file='/n/tcga_models/resnet18_WGD_10x_sa.pkl', return_all_cancers=False):
+def load_COAD_train_val_sa_pickle(pickle_file='/n/tcga_models/resnet18_WGD_10x_sa.pkl', 
+                                  return_all_cancers=False, split_in_two=False):
     with open(pickle_file, 'rb') as f: 
         if return_all_cancers:
-            batch_all, sa_trains, sa_vals = pickle.load(f)
-            return batch_all, sa_trains, sa_vals
+            if split_in_two:
+                batch_all, sa_trains1, sa_vals1, sa_trains2, sa_vals2 = pickle.load(f)
+                return batch_all, sa_trains1, sa_vals1, sa_trains2, sa_vals2
+            else:
+                batch_all, sa_trains1, sa_vals1 = pickle.load(f)
+                return batch_all, sa_trains1, sa_vals1
         else:
             sa_train, sa_val = pickle.load(f)
             del sa_train['TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab']

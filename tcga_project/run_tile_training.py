@@ -19,12 +19,12 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description='Model training engine for molecular phenotype models from TCGA images')
     
-    parser.add_argument('--Task',help='WGD, MSI, MSI-SINGLE_LABEL (only implemented tasks)', required=True, type=str)
+    parser.add_argument('--Task',help='WGD-ALL, WGD, MSI, MSI-SINGLE_LABEL (only implemented tasks)', required=True, type=str)
     parser.add_argument('--GPU', help='GPU device to use for model training', required=True, type=int)
-    parser.add_argument('--n_workers', help='Number of workers to use for dataloaders', required=False, default = 12, type=int)
-    parser.add_argument('--lr',help='Inital learning rate',required = False, default=1e-4, type=float)
-    parser.add_argument('--patience',help='Patience for lr scheduler', required = False, default=10, type=int)
-    parser.add_argument('--model_name',help='Path to place saved model state', required = True, type=str)
+    parser.add_argument('--n_workers', help='Number of workers to use for dataloaders', required=False, default=12, type=int)
+    parser.add_argument('--lr',help='Inital learning rate',required=False, default=1e-4, type=float)
+    parser.add_argument('--patience',help='Patience for lr scheduler', required=False, default=10, type=int)
+    parser.add_argument('--model_name',help='Path to place saved model state', required=True, type=str)
     parser.add_argument('--batch_size',help='Batch size for training and validation loops',required=False, default=264, type=int)
     parser.add_argument('--epochs',help='Epochs to run training and validation loops', required=False, default=50, type=int)
     parser.add_argument('--magnification',help='Magnification level of tiles', required=False, default='5.0', type=str)
@@ -36,7 +36,10 @@ def main():
     device = torch.device('cuda', args.GPU)
     
     # set root dir for images
-    root_dir = data_utils.root_dir_coad
+    if args.Task.upper() == 'WGD-ALL':
+        root_dir = data_utils.root_dir_all
+    else:
+        root_dir = data_utils.root_dir_coad
 
     # normalize and tensorify jpegs
     transform_train = train_utils.transform_train
@@ -44,29 +47,56 @@ def main():
     
     # set the task
     # TODO: implement a general for table to perform predictions
-    if args.Task.upper() == 'MSI':
-        sa_train, sa_val = data_utils.process_MSI_data()
-        output_shape = 2
-    elif args.Task.upper() == 'WGD':
-        sa_train, sa_val = data_utils.process_WGD_data()
-        output_shape = 1
-    elif args.Task.upper() == 'MSI-SINGLE_LABEL':
-        sa_train, sa_val = data_utils.process_MSI_data()
-        # replace ordinal labels with binary
-        for key,value in zip(sa_train.keys(),sa_train.values()):
-            sa_train[key] = int(value>=1)            
-        for key,value in zip(sa_val.keys(),sa_val.values()):
-            sa_val[key] = int(value>=1)
-        output_shape = 1
+    if args.Task.upper() == 'WGD-ALL':
+        pickle_file = '/home/sxchao/MSI_prediction/tcga_project/tcga_wgd_sa_all.pkl'
+        batch_all, sa_trains, sa_vals, _, _ = data_utils.load_COAD_train_val_sa_pickle(pickle_file=pickle_file,
+                                                                                       return_all_cancers=True,
+                                                                                       split_in_two=True)
+        train_cancers = ['COAD', 'BRCA', 'READ_10x', 'LUSC_10x', 'BLCA_10x', 'LUAD_10x', 'STAD_10x', 'HNSC_10x']
+        train_idxs = [batch_all.index(cancer) for cancer in train_cancers]
         
-    # save sample_annotations_train, sample_annotations_val as pickle
-    pickle_file = args.model_name[:-3] + '_sa.pkl'
-    with open(pickle_file, 'wb') as f: 
-        pickle.dump([sa_train, sa_val], f)
+        sa_train = {}
+        sa_val = {}
+        ct_train = []
+        ct_val = []
+        
+        for idx, (sa_t, sa_v) in enumerate(zip(sa_trains, sa_vals)):
+            if idx in train_idxs:
+                sa_train.update(sa_t)
+                sa_val.update(sa_v)
+                ct_train.extend([batch_all[idx]] * len(list(sa_trains[idx].keys())))
+                ct_val.extend([batch_all[idx]] * len(list(sa_vals[idx].keys())))
+                
+        train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train, 
+                                                 magnification=args.magnification, all_cancers=True, cancer_type=ct_train)
+        val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val, 
+                                               magnification=args.magnification, all_cancers=True, cancer_type=ct_val)
+        jpg_to_sample = val_set.jpg_to_sample  
+        output_shape = 1
+    else:
+        if args.Task.upper() == 'MSI':
+            sa_train, sa_val = data_utils.process_MSI_data()
+            output_shape = 2
+        elif args.Task.upper() == 'WGD':
+            sa_train, sa_val = data_utils.process_WGD_data()
+            output_shape = 1
+        elif args.Task.upper() == 'MSI-SINGLE_LABEL':
+            sa_train, sa_val = data_utils.process_MSI_data()
+            # replace ordinal labels with binary
+            for key,value in zip(sa_train.keys(),sa_train.values()):
+                sa_train[key] = int(value>=1)            
+            for key,value in zip(sa_val.keys(),sa_val.values()):
+                sa_val[key] = int(value>=1)
+            output_shape = 1
 
-    train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train, magnification=args.magnification)
-    val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val, magnification=args.magnification)
-    jpg_to_sample = val_set.jpg_to_sample
+        # save sample_annotations_train, sample_annotations_val as pickle
+        pickle_file = args.model_name[:-3] + '_sa.pkl'
+        with open(pickle_file, 'wb') as f: 
+            pickle.dump([sa_train, sa_val], f)
+
+        train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train, magnification=args.magnification)
+        val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val, magnification=args.magnification)
+        jpg_to_sample = val_set.jpg_to_sample
     
     # set weights for random sampling of tiles such that batches are class balanced
     counts = [c[1] for c in sorted(Counter(train_set.all_labels).items())]
