@@ -435,11 +435,18 @@ class TCGA_random_tiles_sampler(Dataset):
     
     
 class ConcatDataset(torch.utils.data.Dataset):
-    def __init__(self, *datasets):
+    def __init__(self, *datasets, return_jpg_to_sample=False):
         self.datasets = datasets
+        self.return_jpg_to_sample = return_jpg_to_sample
         
     def __len__(self):
         return min(len(d) for d in self.datasets)
     
     def __getitem__(self, i):
-        return torch.stack([d[i][0] for d in self.datasets]), torch.cat([torch.tensor(d[i][1]).view(-1) for d in self.datasets])
+        if self.return_jpg_to_sample:
+            return torch.stack([d[i][0] for d in self.datasets]), \
+        torch.cat([torch.tensor(d[i][1]).view(-1) for d in self.datasets]), \
+        torch.stack([torch.tensor([c, d.jpg_to_sample[i]]) for c,d in enumerate(self.datasets)])
+        else:
+            return torch.stack([d[i][0] for d in self.datasets]), torch.cat([torch.tensor(d[i][1]).view(-1) \
+                                                                             for d in self.datasets])

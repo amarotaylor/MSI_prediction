@@ -289,7 +289,7 @@ def tcga_tiled_slides_validation_loop(e, val_loader, resnet,
         return loss, acc
     
     
-def calc_tile_acc_stats(labels, preds):
+def calc_tile_acc_stats(labels, preds, all_jpgs=None):
     # total acc
     acc = np.mean(np.array(labels) == np.array(preds))
     # acc by label
@@ -298,4 +298,108 @@ def calc_tile_acc_stats(labels, preds):
     df['correct_tile'] = df['label'] == df['pred']
     tile_acc_by_label = ', '.join([str(int(i)) + ': ' + str(float(df.groupby(['label'])['correct_tile'].mean()[int(i)]))[:6] \
                                    for i in np.unique(df['label'])])
-    return acc, tile_acc_by_label
+    if all_jpgs is not None:
+        jpgs = torch.cat(all_jpgs)
+        d = {'label': labels, 'pred': preds, 'type': jpgs[:,0], 'sample': jpgs[:,1]}
+        df = pd.DataFrame(data = d)
+        df2 = df.groupby(['type','sample'])['label','pred'].mean().round()
+        df2['correct_sample'] = df2['label'] == df2['pred']
+        mean_pool_acc = df2['correct_sample'].mean()
+        slide_acc_by_label=', '.join([str(int(i))+': '+str(float(df2.groupby(['label'])['correct_sample'].mean()[int(i)]))[:6] \
+                                        for i in np.unique(df2['label'])])
+        return acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label
+    else:
+        return acc, tile_acc_by_label
+    
+    
+def maml_train_local(step, tiles, labels, resnet, local_models, alpha=0.01, criterion=nn.BCEWithLogitsLoss()):
+    resnet.eval()
+    idx = int(tiles.shape[0] / 2)
+    num_tasks = int(tiles.shape[1])
+    
+    # grads storage    
+    grads = [torch.zeros(p.shape).cuda() for p in local_models[0].parameters()]
+
+    #t = torch.randint(num_tasks, (1,)).item()
+    for t in range(num_tasks):
+        # first forward pass, step
+        net = local_models[t]
+        net.train()
+        optimizer = torch.optim.Adam(net.parameters(), lr = alpha)
+
+        inputs = tiles[:idx,t,:,:,:]
+        embed = resnet(inputs)
+        output = net(embed)
+        loss = criterion(output, labels[:idx,t].unsqueeze(1))
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+        
+        # second forward pass, store grads
+        inputs = tiles[idx:,t,:,:,:]
+        embed = resnet(inputs)
+        output = net(embed)
+        loss = criterion(output, labels[idx:,t].unsqueeze(1))
+        loss.backward()
+        grads[0] = grads[0] + net.linear1.weight.grad.data
+        grads[1] = grads[1] + net.linear1.bias.grad.data
+        grads[2] = grads[2] + net.linear2.weight.grad.data
+        grads[3] = grads[3] + net.linear2.bias.grad.data
+        optimizer.zero_grad()
+        
+    if step % 100 == 0:
+        output = (output.contiguous().view(-1) > 0.5).float().detach().cpu().numpy()
+        labels = labels[idx:,t].contiguous().view(-1).float().detach().cpu().numpy()
+        acc, tile_acc_by_label = train_utils.calc_tile_acc_stats(labels, output)
+        print('Step: {0}, Train NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format(step, loss, acc, tile_acc_by_label))
+
+    return grads, local_models
+
+
+def maml_train_global(theta_global, model_global, grads, eta=0.01):
+    theta_global = [theta_global[i] - (eta * grads[i]) for i in range(len(theta_global))]
+    
+    model_global.linear1.weight = torch.nn.Parameter(theta_global[0])
+    model_global.linear1.bias = torch.nn.Parameter(theta_global[1])
+    model_global.linear2.weight = torch.nn.Parameter(theta_global[2])
+    model_global.linear2.bias = torch.nn.Parameter(theta_global[3])
+
+    return theta_global, model_global
+
+
+def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogitsLoss()):
+    resnet.eval()
+    model_global.eval()
+    
+    total_loss = 0
+    all_output = []
+    all_labels = []
+    all_jpgs = []
+    
+    for step, (batch,labels,jpg_to_sample) in enumerate(val_loader):
+        batch_size = batch.shape[0]
+        num_tasks = batch.shape[1]
+        inputs = batch.cuda().transpose(0,1).reshape(batch_size * num_tasks, 3, 256, 256)
+        labels = labels.cuda().transpose(0,1).reshape(batch_size * num_tasks, 1).float()        
+        
+        embed = resnet(inputs)
+        output = model_global(embed)
+        loss = criterion(output, labels)
+        
+        output = (output.contiguous().view(-1) > 0.5).float().detach().cpu().numpy()
+        labels = labels.contiguous().view(-1).float().detach().cpu().numpy()
+        jpg_to_sample = jpg_to_sample.transpose(0,1).reshape(batch_size * num_tasks, 2).float()
+        
+        total_loss += loss.detach().cpu().numpy()
+        all_output.extend(output)
+        all_labels.extend(labels)
+        all_jpgs.append(jpg_to_sample)
+    
+        if step % 100 == 0:
+            acc, tile_acc_by_label = train_utils.calc_tile_acc_stats(labels, output)
+            print('Step: {0}, Val NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format(step, loss, acc, tile_acc_by_label))
+                
+    acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label = train_utils.calc_tile_acc_stats(all_labels, all_output, all_jpgs=all_jpgs)
+    print('Epoch: {0}, Val NLL: {1:0.4f}, Tile-Level Acc: {2:0.4f}, By Label: {3}'.format(e, loss, acc, tile_acc_by_label))
+    print('------ Slide-Level Acc (Mean-Pooling): {0:0.4f}, By Label: {1}'.format(mean_pool_acc, slide_acc_by_label))
+    return loss, acc, mean_pool_acc
