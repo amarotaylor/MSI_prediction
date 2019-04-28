@@ -78,12 +78,18 @@ def main():
                                            num_workers=args.n_workers, 
                                            pin_memory=True)
 
-    val_loader = torch.utils.data.DataLoader(data_utils.ConcatDataset(*val_sets, return_jpg_to_sample=True), 
+    #val_loader = torch.utils.data.DataLoader(data_utils.ConcatDataset(*val_sets, return_jpg_to_sample=True), 
+                                            #batch_size=batch_size, 
+                                            #shuffle=True, 
+                                            #num_workers=args.n_workers, 
+                                            #pin_memory=True)
+                    
+    val_loaders = [torch.utils.data.DataLoader(val_set, 
                                             batch_size=batch_size, 
                                             shuffle=True, 
                                             num_workers=args.n_workers, 
-                                            pin_memory=True)
-
+                                            pin_memory=True) for val_set in val_sets]
+    
     # model args
     state_dict_file = '/n/tcga_models/resnet18_WGD_all_10x.pt'
     input_size = 2048
@@ -145,8 +151,9 @@ def main():
             for i in range(len(local_models)):
                 local_models[i].update_params(theta_global)
 
-        loss, acc, mean_pool_acc = train_utils.maml_validate(e, resnet, model_global, val_loader)
-
+        #loss, acc, mean_pool_acc = train_utils.maml_validate(e, resnet, model_global, val_loader)
+        loss, acc, mean_pool_acc = train_utils.maml_validate_2(e, resnet, model_global, val_loaders)
+        
         if loss > previous_loss:
             patience_count += 1
         else:
@@ -155,10 +162,10 @@ def main():
         
         if loss < best_loss:
             torch.save(model_global.state_dict(), args.model_name)
-            best_loss = val_loss
+            best_loss = loss
         elif mean_pool_acc > best_acc:
             torch.save(model_global.state_dict(), args.model_name)
-            best_acc = val_acc
+            best_acc = mean_pool_acc
 
 if __name__ == "__main__":
     main()

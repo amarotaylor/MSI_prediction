@@ -289,7 +289,7 @@ def tcga_tiled_slides_validation_loop(e, val_loader, resnet,
         return loss, acc
     
     
-def calc_tile_acc_stats(labels, preds, all_jpgs=None):
+def calc_tile_acc_stats(labels, preds, all_types=None, all_jpgs=None):
     # total acc
     acc = np.mean(np.array(labels) == np.array(preds))
     # acc by label
@@ -298,7 +298,16 @@ def calc_tile_acc_stats(labels, preds, all_jpgs=None):
     df['correct_tile'] = df['label'] == df['pred']
     tile_acc_by_label = ', '.join([str(int(i)) + ': ' + str(float(df.groupby(['label'])['correct_tile'].mean()[int(i)]))[:6] \
                                    for i in np.unique(df['label'])])
-    if all_jpgs is not None:
+    if all_types is not None:
+        d = {'label': labels, 'pred': preds, 'type': all_types, 'sample': all_jpgs}
+        df = pd.DataFrame(data = d)
+        df2 = df.groupby(['type','sample'])['label','pred'].mean().round()
+        df2['correct_sample'] = df2['label'] == df2['pred']
+        mean_pool_acc = df2['correct_sample'].mean()
+        slide_acc_by_label=', '.join([str(int(i))+': '+str(float(df2.groupby(['label'])['correct_sample'].mean()[int(i)]))[:6] \
+                                        for i in np.unique(df2['label'])])
+        return acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label
+    elif all_jpgs is not None:
         jpgs = torch.cat(all_jpgs)
         d = {'label': labels, 'pred': preds, 'type': jpgs[:,0], 'sample': jpgs[:,1]}
         df = pd.DataFrame(data = d)
@@ -400,6 +409,46 @@ def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogit
             print('Step: {0}, Val NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format(step, loss, acc, tile_acc_by_label))
                 
     acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label = calc_tile_acc_stats(all_labels, all_output, all_jpgs=all_jpgs)
+    print('Epoch: {0}, Val NLL: {1:0.4f}, Tile-Level Acc: {2:0.4f}, By Label: {3}'.format(e, loss, acc, tile_acc_by_label))
+    print('------ Slide-Level Acc (Mean-Pooling): {0:0.4f}, By Label: {1}'.format(mean_pool_acc, slide_acc_by_label))
+    return loss, acc, mean_pool_acc
+
+
+def maml_validate_2(e, resnet, model_global, val_loaders, criterion=nn.BCEWithLogitsLoss()):
+    resnet.eval()
+    model_global.eval()
+    
+    total_loss = 0
+    all_output = []
+    all_labels = []
+    all_types = []
+    all_jpgs = []
+    
+    for idx, val_loader in enumerate(val_loaders):
+        for step, (batch,labels,jpg_to_sample) in enumerate(val_loader):
+            inputs, labels = batch.cuda(), labels.cuda().view(-1,1).float()
+
+            embed = resnet(inputs)
+            output = model_global(embed)
+            loss = criterion(output, labels)
+
+            output = (output.contiguous().view(-1) > 0.5).float().detach().cpu().numpy()
+            labels = labels.contiguous().view(-1).detach().cpu().numpy()
+            jpg_to_sample = jpg_to_sample.view(-1).float().numpy()
+
+            total_loss += loss.detach().cpu().numpy()
+            all_output.extend(output)
+            all_labels.extend(labels)
+            all_types.extend([idx] * batch.shape[0])
+            all_jpgs.extend(jpg_to_sample)
+
+            if step % 100 == 0:
+                acc, tile_acc_by_label = calc_tile_acc_stats(labels, output)
+                print('Step: {0}, Val NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format(step, loss, acc, tile_acc_by_label))
+
+    acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label = calc_tile_acc_stats(all_labels, all_output, 
+                                                                                    all_types=all_types, 
+                                                                                    all_jpgs=all_jpgs)
     print('Epoch: {0}, Val NLL: {1:0.4f}, Tile-Level Acc: {2:0.4f}, By Label: {3}'.format(e, loss, acc, tile_acc_by_label))
     print('------ Slide-Level Acc (Mean-Pooling): {0:0.4f}, By Label: {1}'.format(mean_pool_acc, slide_acc_by_label))
     return loss, acc, mean_pool_acc

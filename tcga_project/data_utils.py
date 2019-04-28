@@ -98,7 +98,7 @@ class TCGADataset_tiles(Dataset):
     """
 
     def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification='5.0', 
-                 batch_type='tile', tile_batch_size=800, all_cancers=False, cancer_type=None):
+                 batch_type='tile', tile_batch_size=800, all_cancers=False, cancer_type=None, return_jpg_to_sample=False):
         """
         Args:
             sample_annot (dict): dictionary of sample names and their respective labels.
@@ -113,6 +113,7 @@ class TCGADataset_tiles(Dataset):
         self.magnification = magnification
         self.batch_type = batch_type   
         self.cancer_type = cancer_type
+        self.return_jpg_to_sample = return_jpg_to_sample
         if all_cancers:
             self.img_dirs = [self.root_dir + self.cancer_type[idx] + '/' + sample_name + '.svs/' \
                             + sample_name + '_files/' + self.magnification for idx,sample_name in enumerate(self.sample_names)]
@@ -150,7 +151,10 @@ class TCGADataset_tiles(Dataset):
                 image = self.transform(image)
             if image.shape[1] < 256 or image.shape[2] < 256:
                 image = pad_tensor_up_to(image,256,256,channels_last=False)
-            return image, self.all_labels[idx]
+            if self.return_jpg_to_sample:
+                return image, self.all_labels[idx], self.jpg_to_sample[idx]
+            else:
+                return image, self.all_labels[idx]
         elif self.batch_type == 'slide':
             slide_tiles = []
             tiles_batch = []
