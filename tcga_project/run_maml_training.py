@@ -27,7 +27,8 @@ def main():
     parser.add_argument('--eta',help='Inital learning rate for global training',required=False, default=1e-4, type=float)
     parser.add_argument('--patience',help='Patience for lr scheduler', required=False, default=10, type=int)
     parser.add_argument('--model_name',help='Path to place saved model state', required=True, type=str)
-    parser.add_argument('--batch_size',help='Batch size for training and validation loops',required=False, default=264, type=int)
+    parser.add_argument('--batch_size_train',help='Batch size for training loop',required=False, default=264, type=int)
+    parser.add_argument('--batch_size_val',help='Batch size for validation loop',required=False, default=264, type=int)
     parser.add_argument('--epochs',help='Epochs to run training and validation loops', required=False, default=50, type=int)
     parser.add_argument('--magnification',help='Magnification level of tiles', required=False, default='5.0', type=str)
     args = parser.parse_args()
@@ -67,25 +68,25 @@ def main():
                                                root_dir + val_cancers[j] + '/', 
                                                transform=val_transform, 
                                                magnification=magnification, 
-                                               batch_type='tile')
+                                               batch_type='tile', 
+                                               return_jpg_to_sample=True)
         val_sets.append(val_set)
     
     # get DataLoaders    
-    batch_size = args.batch_size
     train_loader = torch.utils.data.DataLoader(data_utils.ConcatDataset(*train_sets), 
-                                           batch_size=batch_size, 
+                                           batch_size=args.batch_size_train, 
                                            shuffle=True, 
                                            num_workers=args.n_workers, 
                                            pin_memory=True)
 
     #val_loader = torch.utils.data.DataLoader(data_utils.ConcatDataset(*val_sets, return_jpg_to_sample=True), 
-                                            #batch_size=batch_size, 
+                                            #batch_size=args.batch_size_val, 
                                             #shuffle=True, 
                                             #num_workers=args.n_workers, 
                                             #pin_memory=True)
                     
     val_loaders = [torch.utils.data.DataLoader(val_set, 
-                                            batch_size=batch_size, 
+                                            batch_size=args.batch_size_val, 
                                             shuffle=True, 
                                             num_workers=args.n_workers, 
                                             pin_memory=True) for val_set in val_sets]
@@ -152,7 +153,7 @@ def main():
                 local_models[i].update_params(theta_global)
 
         #loss, acc, mean_pool_acc = train_utils.maml_validate(e, resnet, model_global, val_loader)
-        loss, acc, mean_pool_acc = train_utils.maml_validate_2(e, resnet, model_global, val_loaders)
+        loss, acc, mean_pool_acc = train_utils.maml_validate_all(e, resnet, model_global, val_loaders)
         
         if loss > previous_loss:
             patience_count += 1
@@ -160,12 +161,10 @@ def main():
             patience_count = 0
         previous_loss = loss
         
-        if loss < best_loss:
+        if loss < best_loss or acc > best_acc or mean_pool_acc > best_acc:
             torch.save(model_global.state_dict(), args.model_name)
-            best_loss = loss
-        elif mean_pool_acc > best_acc:
-            torch.save(model_global.state_dict(), args.model_name)
-            best_acc = mean_pool_acc
+            best_loss = min(best_loss, loss)
+            best_acc = max(best_acc, acc, mean_pool_acc)
 
 if __name__ == "__main__":
     main()

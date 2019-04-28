@@ -297,8 +297,8 @@ def calc_tile_acc_stats(labels, preds, all_types=None, all_jpgs=None):
     df = pd.DataFrame(data = d)
     df['correct_tile'] = df['label'] == df['pred']
     tile_acc_by_label = ', '.join([str(int(i)) + ': ' + str(float(df.groupby(['label'])['correct_tile'].mean()[int(i)]))[:6] \
-                                   for i in np.unique(df['label'])])
-    if all_types is not None:
+                                   for i in np.unique(df['label'])])    
+    if all_types is not None: # cancer_type and jpg_to_sample are separate
         d = {'label': labels, 'pred': preds, 'type': all_types, 'sample': all_jpgs}
         df = pd.DataFrame(data = d)
         df2 = df.groupby(['type','sample'])['label','pred'].mean().round()
@@ -306,8 +306,13 @@ def calc_tile_acc_stats(labels, preds, all_types=None, all_jpgs=None):
         mean_pool_acc = df2['correct_sample'].mean()
         slide_acc_by_label=', '.join([str(int(i))+': '+str(float(df2.groupby(['label'])['correct_sample'].mean()[int(i)]))[:6] \
                                         for i in np.unique(df2['label'])])
-        return acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label
-    elif all_jpgs is not None:
+        df3 = df.groupby(['type','sample'])['label','pred'].max().round()
+        df3['correct_sample'] = df3['label'] == df3['pred']
+        max_pool_acc = df3['correct_sample'].mean()
+        slide_acc_by_mlabel=', '.join([str(int(i))+': '+str(float(df3.groupby(['label'])['correct_sample'].mean()[int(i)]))[:6] \
+                                       for i in np.unique(df3['label'])])
+        return acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label, max_pool_acc, slide_acc_by_mlabel
+    elif all_jpgs is not None: # cancer_type and jpg_to_sample are combined
         jpgs = torch.cat(all_jpgs)
         d = {'label': labels, 'pred': preds, 'type': jpgs[:,0], 'sample': jpgs[:,1]}
         df = pd.DataFrame(data = d)
@@ -414,7 +419,7 @@ def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogit
     return loss, acc, mean_pool_acc
 
 
-def maml_validate_2(e, resnet, model_global, val_loaders, criterion=nn.BCEWithLogitsLoss()):
+def maml_validate_all(e, resnet, model_global, val_loaders, criterion=nn.BCEWithLogitsLoss()):
     resnet.eval()
     model_global.eval()
     
@@ -446,9 +451,9 @@ def maml_validate_2(e, resnet, model_global, val_loaders, criterion=nn.BCEWithLo
                 acc, tile_acc_by_label = calc_tile_acc_stats(labels, output)
                 print('Step: {0}, Val NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format(step, loss, acc, tile_acc_by_label))
 
-    acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label = calc_tile_acc_stats(all_labels, all_output, 
-                                                                                    all_types=all_types, 
-                                                                                    all_jpgs=all_jpgs)
+    acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label, max_pool_acc, slide_acc_by_mlabel = \
+    calc_tile_acc_stats(all_labels, all_output, all_types=all_types, all_jpgs=all_jpgs)
     print('Epoch: {0}, Val NLL: {1:0.4f}, Tile-Level Acc: {2:0.4f}, By Label: {3}'.format(e, loss, acc, tile_acc_by_label))
     print('------ Slide-Level Acc (Mean-Pooling): {0:0.4f}, By Label: {1}'.format(mean_pool_acc, slide_acc_by_label))
+    print('------ Slide-Level Acc (Max-Pooling): {0:0.4f}, By Label: {1}'.format(max_pool_acc, slide_acc_by_mlabel))
     return loss, acc, mean_pool_acc
