@@ -350,7 +350,7 @@ def maml_train_local(step, tiles, labels, resnet, local_models, alpha=0.01, crit
     if step % 100 == 0:
         output = (output.contiguous().view(-1) > 0.5).float().detach().cpu().numpy()
         labels = labels[idx:,t].contiguous().view(-1).float().detach().cpu().numpy()
-        acc, tile_acc_by_label = train_utils.calc_tile_acc_stats(labels, output)
+        acc, tile_acc_by_label = calc_tile_acc_stats(labels, output)
         print('Step: {0}, Train NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format(step, loss, acc, tile_acc_by_label))
 
     return grads, local_models
@@ -396,10 +396,10 @@ def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogit
         all_jpgs.append(jpg_to_sample)
     
         if step % 100 == 0:
-            acc, tile_acc_by_label = train_utils.calc_tile_acc_stats(labels, output)
+            acc, tile_acc_by_label = calc_tile_acc_stats(labels, output)
             print('Step: {0}, Val NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format(step, loss, acc, tile_acc_by_label))
                 
-    acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label = train_utils.calc_tile_acc_stats(all_labels, all_output, all_jpgs=all_jpgs)
+    acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label = calc_tile_acc_stats(all_labels, all_output, all_jpgs=all_jpgs)
     print('Epoch: {0}, Val NLL: {1:0.4f}, Tile-Level Acc: {2:0.4f}, By Label: {3}'.format(e, loss, acc, tile_acc_by_label))
     print('------ Slide-Level Acc (Mean-Pooling): {0:0.4f}, By Label: {1}'.format(mean_pool_acc, slide_acc_by_label))
     return loss, acc, mean_pool_acc
