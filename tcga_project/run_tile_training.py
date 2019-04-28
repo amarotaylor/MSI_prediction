@@ -55,6 +55,9 @@ def main():
         train_cancers = ['COAD', 'BRCA', 'READ_10x', 'LUSC_10x', 'BLCA_10x', 'LUAD_10x', 'STAD_10x', 'HNSC_10x']
         train_idxs = [batch_all.index(cancer) for cancer in train_cancers]
         
+        val_cancers = ['UCEC', 'LIHC_10x', 'KIRC_10x']
+        val_idxs = [batch_all.index(cancer) for cancer in val_cancers]
+        
         sa_train = {}
         sa_val = {}
         ct_train = []
@@ -62,15 +65,17 @@ def main():
         
         for idx, (sa_t, sa_v) in enumerate(zip(sa_trains, sa_vals)):
             if idx in train_idxs:
-                sa_train.update(sa_t)
+                sa_train.update(sa_t)                
+                ct_train.extend([batch_all[idx]] * len(list(sa_trains[idx].keys())))                
+            if idx in val_idxs:
                 sa_val.update(sa_v)
-                ct_train.extend([batch_all[idx]] * len(list(sa_trains[idx].keys())))
                 ct_val.extend([batch_all[idx]] * len(list(sa_vals[idx].keys())))
                 
         train_set = data_utils.TCGADataset_tiles(sa_train, root_dir, transform=transform_train, 
                                                  magnification=args.magnification, all_cancers=True, cancer_type=ct_train)
         val_set = data_utils.TCGADataset_tiles(sa_val, root_dir, transform=transform_val, 
                                                magnification=args.magnification, all_cancers=True, cancer_type=ct_val)
+        
         jpg_to_sample = val_set.jpg_to_sample  
         output_shape = 1
     else:
@@ -139,8 +144,8 @@ def main():
         train_utils.embedding_training_loop(e, train_loader, resnet, criterion_train, 
                                             optimizer,device=device,task=args.Task.upper())
         val_loss, val_acc = train_utils.embedding_validation_loop(e, valid_loader, resnet, criterion_val, 
-                                                         jpg_to_sample, dataset='Val', scheduler=scheduler, 
-                                                         device=device, task=args.Task.upper())
+                                                                  jpg_to_sample, dataset='Val', scheduler=scheduler,
+                                                                  device=device, task=args.Task.upper())
         if val_loss < best_loss:
             torch.save(resnet.state_dict(), args.model_name)
             best_loss = val_loss

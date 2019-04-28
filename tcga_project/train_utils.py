@@ -49,6 +49,7 @@ def embedding_training_loop(e, train_loader, net, criterion, optimizer,device='c
     print('Epoch: {0}, Avg Train NLL: {1:0.4f}'.format(e, total_loss/float(idx+1)))
     del batch,labels
 
+    
 def embedding_validation_loop(e, valid_loader, net, criterion, jpg_to_sample, 
                               dataset='Val', scheduler=None, device='cuda:0', task='MSI'):
     net.eval()
@@ -187,8 +188,6 @@ def tcga_embedding_validation_loop(e, valid_loader, resnet, slide_level_classifi
     return total_loss
 
 
-
-
 def tcga_tiled_slides_training_loop(e, train_loader, resnet, 
                                     slide_level_classification_layer, criterion, 
                                  optimizer, pool_fn,device='cuda:0',train_set=None,p_step =0.0001):
@@ -271,8 +270,6 @@ def tcga_tiled_slides_validation_loop(e, val_loader, resnet,
             embeddings.extend(resnet(batch))
             slide_membership.extend(idxs)
 
-
-
         slide_membership = torch.stack(slide_membership)
         slides = torch.unique(slide_membership,sorted=True)
         embeddings = torch.stack(embeddings)
@@ -290,3 +287,15 @@ def tcga_tiled_slides_validation_loop(e, val_loader, resnet,
         del slide_membership, embeddings, labels, pooled, slides, batch, coords
 
         return loss, acc
+    
+    
+def calc_tile_acc_stats(labels, preds):
+    # total acc
+    acc = np.mean(np.array(labels) == np.array(preds))
+    # acc by label
+    d = {'label': labels, 'pred': preds}
+    df = pd.DataFrame(data = d)
+    df['correct_tile'] = df['label'] == df['pred']
+    tile_acc_by_label = ', '.join([str(int(i)) + ': ' + str(float(df.groupby(['label'])['correct_tile'].mean()[int(i)]))[:6] \
+                                   for i in np.unique(df['label'])])
+    return acc, tile_acc_by_label
