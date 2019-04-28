@@ -111,9 +111,10 @@ class TCGADataset_tiles(Dataset):
         self.transform = transform
         self.loader = loader
         self.magnification = magnification
-        self.batch_type = batch_type    
+        self.batch_type = batch_type   
+        self.cancer_type = cancer_type
         if all_cancers:
-            self.img_dirs = [self.root_dir + cancer_type[idx] + '/' + sample_name + '.svs/' \
+            self.img_dirs = [self.root_dir + self.cancer_type[idx] + '/' + sample_name + '.svs/' \
                             + sample_name + '_files/' + self.magnification for idx,sample_name in enumerate(self.sample_names)]
         else:
             self.img_dirs = [self.root_dir + sample_name + '.svs/' \
@@ -431,3 +432,14 @@ class TCGA_random_tiles_sampler(Dataset):
         label = self.sample_labels[idx]
         coords = torch.stack([self.coords[idx][i] for i in idxs])
         return slide, label, coords
+    
+    
+class ConcatDataset(torch.utils.data.Dataset):
+    def __init__(self, *datasets):
+        self.datasets = datasets
+        
+    def __len__(self):
+        return min(len(d) for d in self.datasets)
+    
+    def __getitem__(self, i):
+        return torch.stack([d[i][0] for d in self.datasets]), torch.cat([torch.tensor(d[i][1]).view(-1) for d in self.datasets])
