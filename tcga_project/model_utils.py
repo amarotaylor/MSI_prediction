@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+#import copy
 
 
 class Identity(nn.Module):
@@ -19,10 +20,8 @@ class FeedForward(torch.nn.Module):
         self.linear2 = nn.Linear(hidden_size, output_size)
         
         if initial_vals != None:
-            self.linear1.weight = torch.nn.Parameter(initial_vals[0])
-            self.linear1.bias = torch.nn.Parameter(initial_vals[1])
-            self.linear2.weight = torch.nn.Parameter(initial_vals[2])
-            self.linear2.bias = torch.nn.Parameter(initial_vals[3])
+            for idx, param in enumerate(self.parameters()):
+                param.data = initial_vals[idx].clone()
         
     def forward(self, inputs):
         hidden = self.m(self.linear1(self.d(inputs)))
@@ -30,10 +29,10 @@ class FeedForward(torch.nn.Module):
         return output
     
     def update_params(self, new_vals):
-        #for idx, param in enumerate(self.parameters()):
-        #    param = torch.nn.Parameter(new_vals[idx])
+        for idx, param in enumerate(self.parameters()):
+            param.data = new_vals[idx].clone()
             
-        self.linear1.weight = torch.nn.Parameter(new_vals[0])
-        self.linear1.bias = torch.nn.Parameter(new_vals[1])
-        self.linear2.weight = torch.nn.Parameter(new_vals[2])
-        self.linear2.bias = torch.nn.Parameter(new_vals[3])
+        #self.linear1.weight = torch.nn.Parameter(new_vals[0])
+        #self.linear1.bias = torch.nn.Parameter(new_vals[1])
+        #self.linear2.weight = torch.nn.Parameter(new_vals[2])
+        #self.linear2.bias = torch.nn.Parameter(new_vals[3])
