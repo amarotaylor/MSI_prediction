@@ -147,15 +147,14 @@ def main():
 
         for step, (tiles, labels) in enumerate(train_loader):  
             tiles, labels = tiles.cuda(device=device), labels.cuda(device=device).float()           
-            grads, local_models = train_utils.maml_train_local(step, tiles, labels, resnet, local_models, alpha = alpha, device=device)
-            theta_global, model_global = train_utils.maml_train_global(theta_global, model_global, grads, eta = eta)
+            grads, local_models = train_utils.maml_train_local(step, tiles, labels, resnet, local_models, alpha=alpha, 
+                                                               device=device)
+            theta_global, model_global = train_utils.maml_train_global(theta_global, model_global, grads, eta=eta)
             for i in range(len(local_models)):
                 local_models[i].update_params(theta_global)
-            if step > 10:
-                break
 
         #loss, acc, mean_pool_acc = train_utils.maml_validate(e, resnet, model_global, val_loader)
-        total_loss, acc, mean_pool_acc = train_utils.maml_validate_all(e, resnet, model_global, val_loaders,device=device)
+        total_loss, acc, mean_pool_acc = train_utils.maml_validate_all(e, resnet, model_global, val_loaders, device=device)
         
         if total_loss > previous_loss:
             patience_count += 1
