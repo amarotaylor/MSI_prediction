@@ -381,6 +381,7 @@ def maml_train_global(theta_global, model_global, grads, eta=0.01):
     return theta_global, model_global
 
 
+# delete
 def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogitsLoss(),device=torch.device('cuda',0)):
     resnet.eval()
     model_global.eval()
@@ -419,9 +420,10 @@ def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogit
     return loss, acc, mean_pool_acc
 
 
-def maml_validate_all(e, resnet, model_global, val_loaders, criterion=nn.BCEWithLogitsLoss(),device=torch.device('cuda',0)):
+def maml_validate_all(e, resnet, model_global, val_loaders, device=torch.device('cuda',0)):
     resnet.eval()
     model_global.eval()
+    criterion=nn.BCEWithLogitsLoss(reduction='none')
     
     total_loss = 0
     all_output = []
@@ -436,25 +438,32 @@ def maml_validate_all(e, resnet, model_global, val_loaders, criterion=nn.BCEWith
             embed = resnet(inputs)
             output = model_global(embed)
             loss = criterion(output, labels)
-
+            
+            prop_pos = torch.mean(labels)
+            weighted_loss = torch.sum(loss[labels == 1.0]) / prop_pos + torch.sum(loss[labels == 0.0]) / (1 - prop_pos)
+            
+            total_loss += weighted_loss.detach().cpu().numpy()
+            
             output = (output.contiguous().view(-1) > 0.5).float().detach().cpu().numpy()
             labels = labels.contiguous().view(-1).detach().cpu().numpy()
             jpg_to_sample = jpg_to_sample.view(-1).float().numpy()
-
-            total_loss += loss.detach().cpu().numpy()
+            
             all_output.extend(output)
             all_labels.extend(labels)
             all_types.extend([idx] * batch.shape[0])
             all_jpgs.extend(jpg_to_sample)
 
-            if step % 100 == 0:
+            if (step + 1) % 100 == 0:
                 acc, tile_acc_by_label = calc_tile_acc_stats(labels, output)
-                print('Step: {0}, Val NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format((idx + 1) * step, loss, acc, 
-                                                                                          tile_acc_by_label))
-
+                print('Step: {0}, Val NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format((idx + 1) * (step + 1), weighted_loss, 
+                                                                                          acc, tile_acc_by_label))
+            if step > 5:
+                break
+        break
+        
     acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label, max_pool_acc, slide_acc_by_mlabel = \
     calc_tile_acc_stats(all_labels, all_output, all_types=all_types, all_jpgs=all_jpgs)
-    print('Epoch: {0}, Val NLL: {1:0.4f}, Tile-Level Acc: {2:0.4f}, By Label: {3}'.format(e, loss, acc, tile_acc_by_label))
+    print('Epoch: {0}, Val NLL: {1:0.4f}, Tile-Level Acc: {2:0.4f}, By Label: {3}'.format(e, total_loss / ((idx + 1) * (step + 1)), acc, tile_acc_by_label))
     print('------ Slide-Level Acc (Mean-Pooling): {0:0.4f}, By Label: {1}'.format(mean_pool_acc, slide_acc_by_label))
     print('------ Slide-Level Acc (Max-Pooling): {0:0.4f}, By Label: {1}'.format(max_pool_acc, slide_acc_by_mlabel))
-    return loss, acc, mean_pool_acc
+    return total_loss, acc, mean_pool_acc

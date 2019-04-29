@@ -151,20 +151,21 @@ def main():
             theta_global, model_global = train_utils.maml_train_global(theta_global, model_global, grads, eta = eta)
             for i in range(len(local_models)):
                 local_models[i].update_params(theta_global)
+            if step > 10:
+                break
 
         #loss, acc, mean_pool_acc = train_utils.maml_validate(e, resnet, model_global, val_loader)
-        loss, acc, mean_pool_acc = train_utils.maml_validate_all(e, resnet, model_global, val_loaders,device=device)
+        total_loss, acc, mean_pool_acc = train_utils.maml_validate_all(e, resnet, model_global, val_loaders,device=device)
         
-        if loss > previous_loss:
+        if total_loss > previous_loss:
             patience_count += 1
         else:
             patience_count = 0
-        previous_loss = loss
+        previous_loss = total_loss
         
-        if loss < best_loss or acc > best_acc or mean_pool_acc > best_acc:
+        if total_loss < best_loss:
             torch.save(model_global.state_dict(), args.model_name)
-            best_loss = min(best_loss, loss)
-            best_acc = max(best_acc, acc, mean_pool_acc)
-
+            best_loss = total_loss
+        
 if __name__ == "__main__":
     main()
