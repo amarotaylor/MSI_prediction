@@ -326,7 +326,7 @@ def calc_tile_acc_stats(labels, preds, all_types=None, all_jpgs=None):
         return acc, tile_acc_by_label
     
     
-def maml_train_local(step, tiles, labels, resnet, local_models, alpha=0.01, criterion=nn.BCEWithLogitsLoss()):
+def maml_train_local(step, tiles, labels, resnet, local_models, alpha=0.01, criterion=nn.BCEWithLogitsLoss(),device=torch.device('cuda',0)):
     resnet.eval()
     idx = int(tiles.shape[0] / 2)
     num_tasks = int(tiles.shape[1])
@@ -381,7 +381,7 @@ def maml_train_global(theta_global, model_global, grads, eta=0.01):
     return theta_global, model_global
 
 
-def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogitsLoss()):
+def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogitsLoss(),device=torch.device('cuda',0)):
     resnet.eval()
     model_global.eval()
     
@@ -393,8 +393,8 @@ def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogit
     for step, (batch,labels,jpg_to_sample) in enumerate(val_loader):
         batch_size = batch.shape[0]
         num_tasks = batch.shape[1]
-        inputs = batch.cuda().transpose(0,1).reshape(batch_size * num_tasks, 3, 256, 256)
-        labels = labels.cuda().transpose(0,1).reshape(batch_size * num_tasks, 1).float()        
+        inputs = batch.cuda(device=device).transpose(0,1).reshape(batch_size * num_tasks, 3, 256, 256)
+        labels = labels.cuda(device=device).transpose(0,1).reshape(batch_size * num_tasks, 1).float()        
         
         embed = resnet(inputs)
         output = model_global(embed)
@@ -419,7 +419,7 @@ def maml_validate(e, resnet, model_global, val_loader, criterion=nn.BCEWithLogit
     return loss, acc, mean_pool_acc
 
 
-def maml_validate_all(e, resnet, model_global, val_loaders, criterion=nn.BCEWithLogitsLoss()):
+def maml_validate_all(e, resnet, model_global, val_loaders, criterion=nn.BCEWithLogitsLoss(),device=torch.device('cuda',0)):
     resnet.eval()
     model_global.eval()
     
@@ -431,7 +431,7 @@ def maml_validate_all(e, resnet, model_global, val_loaders, criterion=nn.BCEWith
     
     for idx, val_loader in enumerate(val_loaders):
         for step, (batch,labels,jpg_to_sample) in enumerate(val_loader):
-            inputs, labels = batch.cuda(), labels.cuda().view(-1,1).float()
+            inputs, labels = batch.cuda(device=device), labels.cuda(device=device).view(-1,1).float()
 
             embed = resnet(inputs)
             output = model_global(embed)

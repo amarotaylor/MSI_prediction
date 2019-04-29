@@ -146,14 +146,14 @@ def main():
             print('--- LR DECAY --- Alpha: {0:0.8f}, Eta: {1:0.8f}'.format(alpha, eta))
 
         for step, (tiles, labels) in enumerate(train_loader):  
-            tiles, labels = tiles.cuda(), labels.cuda().float()           
-            grads, local_models = train_utils.maml_train_local(step, tiles, labels, resnet, local_models, alpha = alpha)
+            tiles, labels = tiles.cuda(device=device), labels.cuda(device=device).float()           
+            grads, local_models = train_utils.maml_train_local(step, tiles, labels, resnet, local_models, alpha = alpha, device=device)
             theta_global, model_global = train_utils.maml_train_global(theta_global, model_global, grads, eta = eta)
             for i in range(len(local_models)):
                 local_models[i].update_params(theta_global)
 
         #loss, acc, mean_pool_acc = train_utils.maml_validate(e, resnet, model_global, val_loader)
-        loss, acc, mean_pool_acc = train_utils.maml_validate_all(e, resnet, model_global, val_loaders)
+        loss, acc, mean_pool_acc = train_utils.maml_validate_all(e, resnet, model_global, val_loaders,device=device)
         
         if loss > previous_loss:
             patience_count += 1
