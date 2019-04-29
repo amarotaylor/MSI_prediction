@@ -449,7 +449,8 @@ def maml_validate_all(e, resnet, model_global, val_loaders, criterion=nn.BCEWith
 
             if step % 100 == 0:
                 acc, tile_acc_by_label = calc_tile_acc_stats(labels, output)
-                print('Step: {0}, Val NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format(step, loss, acc, tile_acc_by_label))
+                print('Step: {0}, Val NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format((idx + 1) * step, loss, acc, 
+                                                                                          tile_acc_by_label))
 
     acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label, max_pool_acc, slide_acc_by_mlabel = \
     calc_tile_acc_stats(all_labels, all_output, all_types=all_types, all_jpgs=all_jpgs)

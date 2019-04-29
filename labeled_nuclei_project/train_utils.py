@@ -129,7 +129,7 @@ def rationales_training_loop_reinforce(e, train_loader, gen, enc, pool_fn, num_s
     
     for slide,label in train_loader:
         slide,label = slide.squeeze(0).cuda(),label.cuda()
-        zis, grads, all_grads = sampler(slide, gen, num_samples)
+        zis, grads, all_grads = sampler_reinforce(slide, gen, num_samples)
         zis = torch.stack(zis)
         
         rationales = [slide[zi==1,:,:,:] for zi in zis]
