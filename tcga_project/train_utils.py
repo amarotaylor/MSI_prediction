@@ -372,11 +372,11 @@ def maml_train_local(step, tiles, labels, resnet, local_models, alpha=0.01, crit
 
 def maml_train_global(theta_global, model_global, grads, eta=0.01):
     theta_global = [theta_global[i] - (eta * grads[i]) for i in range(len(theta_global))]
-    
-    model_global.linear1.weight = torch.nn.Parameter(theta_global[0])
-    model_global.linear1.bias = torch.nn.Parameter(theta_global[1])
-    model_global.linear2.weight = torch.nn.Parameter(theta_global[2])
-    model_global.linear2.bias = torch.nn.Parameter(theta_global[3])
+    model_global.update_params(theta_global)
+    #model_global.linear1.weight = torch.nn.Parameter(theta_global[0])
+    #model_global.linear1.bias = torch.nn.Parameter(theta_global[1])
+    #model_global.linear2.weight = torch.nn.Parameter(theta_global[2])
+    #model_global.linear2.bias = torch.nn.Parameter(theta_global[3])
 
     return theta_global, model_global
 

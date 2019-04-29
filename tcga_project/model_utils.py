@@ -30,6 +30,9 @@ class FeedForward(torch.nn.Module):
         return output
     
     def update_params(self, new_vals):
+        #for idx, param in enumerate(self.parameters()):
+        #    param = torch.nn.Parameter(new_vals[idx])
+            
         self.linear1.weight = torch.nn.Parameter(new_vals[0])
         self.linear1.bias = torch.nn.Parameter(new_vals[1])
         self.linear2.weight = torch.nn.Parameter(new_vals[2])
