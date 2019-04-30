@@ -94,6 +94,7 @@ def main():
     
     # model args
     state_dict_file = '/n/tcga_models/resnet18_WGD_all_10x.pt'
+    state_dict_file_maml = '/n/tcga_models/maml_WGD_10x_v02a.pt'
     input_size = 2048
     hidden_size = 512
     output_size = 1
@@ -111,12 +112,15 @@ def main():
         param.requires_grad = False
     
     # initialize theta_global
-    model_global = model_utils.FeedForward(input_size, hidden_size, output_size).cuda(device=device)
+    model_global = model_utils.FeedForward(input_size, hidden_size, output_size)
+    saved_state = torch.load(state_dict_file_maml, map_location=lambda storage, loc: storage)
+    model_global.load_state_dict(saved_state)
+    model_global.cuda(device=device)
     theta_global = []
     for p in model_global.parameters():
-        theta_global.append(torch.randn(list(p.shape)).cuda(device=device))
+        theta_global.append(p.detach().clone().cuda(device=device))
 
-    model_global.update_params(theta_global)
+    #model_global.update_params(theta_global)
     #model_global.linear1.weight = torch.nn.Parameter(theta_global[0])
     #model_global.linear1.bias = torch.nn.Parameter(theta_global[1])
     #model_global.linear2.weight = torch.nn.Parameter(theta_global[2])
