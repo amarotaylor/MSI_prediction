@@ -431,8 +431,8 @@ def maml_validate_all(e, resnet, model_global, val_loaders, device=torch.device(
     all_types = []
     all_jpgs = []
     
-    for idx, val_loader in enumerate(val_loaders):
-        for step, (batch,labels,jpg_to_sample) in enumerate(val_loader):
+    for idx,val_loader in enumerate(val_loaders):
+        for step,(batch,labels,jpg_to_sample) in enumerate(val_loader):
             inputs, labels = batch.cuda(device=device), labels.cuda(device=device).view(-1,1).float()
 
             embed = resnet(inputs)
@@ -454,13 +454,13 @@ def maml_validate_all(e, resnet, model_global, val_loaders, device=torch.device(
 
             if (step + 1) % 100 == 0:
                 acc, tile_acc_by_label = calc_tile_acc_stats(labels, output)
-                print('Step: {0}, Val Weighted NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format((idx + 1) * (step + 1),
+                print('Step: {0}, Val Batch NLL: {1:0.4f}, Acc: {2:0.4f}, By Label: {3}'.format((idx + 1) * (step + 1),
                                                                                                    weighted_loss, acc, 
                                                                                                    tile_acc_by_label))
         
     acc, tile_acc_by_label, mean_pool_acc, slide_acc_by_label, max_pool_acc, slide_acc_by_mlabel = \
     calc_tile_acc_stats(all_labels, all_output, all_types=all_types, all_jpgs=all_jpgs)
-    print('Epoch: {0}, Val Avg Weighted NLL: {1:0.4f}, Tile-Level Acc: {2:0.4f}, By Label: {3}'.format(e, total_loss / ((idx + 1) * (step + 1)), acc, tile_acc_by_label))
+    print('Epoch: {0}, Val Avg NLL: {1:0.4f}, Tile-Level Acc: {2:0.4f}, By Label: {3}'.format(e, total_loss / (float(len(val_loaders[0])) + float(len(val_loaders[1])) + float(len(val_loaders[2]))), acc, tile_acc_by_label))
     print('------ Slide-Level Acc (Mean-Pooling): {0:0.4f}, By Label: {1}'.format(mean_pool_acc, slide_acc_by_label))
     print('------ Slide-Level Acc (Max-Pooling): {0:0.4f}, By Label: {1}'.format(max_pool_acc, slide_acc_by_mlabel))
     return total_loss, acc, mean_pool_acc

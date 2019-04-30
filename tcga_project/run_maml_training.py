@@ -164,6 +164,7 @@ def main():
         
         if total_loss < best_loss:
             torch.save(model_global.state_dict(), args.model_name)
+            print('--- WROTE MODEL ---')
             best_loss = total_loss
         
 if __name__ == "__main__":
