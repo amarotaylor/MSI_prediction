@@ -235,7 +235,7 @@ def process_MSI_data():
 
 
 def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_path='COAD_WGD_TABLE.xls', 
-                     wgd_raw=None, split_in_two=False, print_overlap=False):
+                     wgd_raw=None, split_in_two=False, print_stats=False):
     # note: flexible across cancer types, e.g., coad vars can be for brca
     if wgd_path is not None:
         wgd_raw = pd.read_excel(wgd_path)
@@ -245,7 +245,7 @@ def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_
     coad_img = np.array([v[0:name_len] for v in coad_full_name])
     coad_both = np.intersect1d(coad_img, wgd_raw.index)        
         
-    if print_overlap:
+    if print_stats:
         if cancer_type[-1:] == 'x':
             num_labels = np.sum(wgd_raw['Type'].isin([cancer_type.split('_')[0]]))
         else:
