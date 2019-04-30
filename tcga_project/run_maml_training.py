@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--batch_size_val',help='Batch size for validation loop',required=False, default=264, type=int)
     parser.add_argument('--epochs',help='Epochs to run training and validation loops', required=False, default=50, type=int)
     parser.add_argument('--magnification',help='Magnification level of tiles', required=False, default='5.0', type=str)
+    parser.add_argument('--save_best',help='Metric used to save best model', required=False, default='loss', type=str)
     args = parser.parse_args()
     
     # setup
@@ -93,6 +94,7 @@ def main():
     
     # model args
     state_dict_file = '/n/tcga_models/resnet18_WGD_all_10x.pt'
+    state_dict_file_maml = '/n/tcga_models/maml_WGD_10x_v02a.pt'
     input_size = 2048
     hidden_size = 512
     output_size = 1
@@ -110,20 +112,24 @@ def main():
         param.requires_grad = False
     
     # initialize theta_global
-    model_global = model_utils.FeedForward(input_size, hidden_size, output_size).cuda()
+    model_global = model_utils.FeedForward(input_size, hidden_size, output_size)
+    saved_state = torch.load(state_dict_file_maml, map_location=lambda storage, loc: storage)
+    model_global.load_state_dict(saved_state)
+    model_global.cuda(device=device)
     theta_global = []
     for p in model_global.parameters():
-        theta_global.append(torch.randn(list(p.shape)).cuda())
+        theta_global.append(p.detach().clone().cuda(device=device))
 
-    model_global.linear1.weight = torch.nn.Parameter(theta_global[0])
-    model_global.linear1.bias = torch.nn.Parameter(theta_global[1])
-    model_global.linear2.weight = torch.nn.Parameter(theta_global[2])
-    model_global.linear2.bias = torch.nn.Parameter(theta_global[3])
+    #model_global.update_params(theta_global)
+    #model_global.linear1.weight = torch.nn.Parameter(theta_global[0])
+    #model_global.linear1.bias = torch.nn.Parameter(theta_global[1])
+    #model_global.linear2.weight = torch.nn.Parameter(theta_global[2])
+    #model_global.linear2.bias = torch.nn.Parameter(theta_global[3])
 
     # initialize local models, set theta_local = theta_global    
     local_models = []
     for i in range(len(train_cancers)):
-        local_models.append(model_utils.FeedForward(input_size, hidden_size, output_size, theta_global).cuda()) 
+        local_models.append(model_utils.FeedForward(input_size, hidden_size, output_size, theta_global).cuda(device=device)) 
     
     # training params
     num_epochs = args.epochs
@@ -147,24 +153,30 @@ def main():
 
         for step, (tiles, labels) in enumerate(train_loader):  
             tiles, labels = tiles.cuda(device=device), labels.cuda(device=device).float()           
-            grads, local_models = train_utils.maml_train_local(step, tiles, labels, resnet, local_models, alpha = alpha, device=device)
-            theta_global, model_global = train_utils.maml_train_global(theta_global, model_global, grads, eta = eta)
+            grads, local_models = train_utils.maml_train_local(step, tiles, labels, resnet, local_models, alpha=alpha, 
+                                                               device=device)
+            theta_global, model_global = train_utils.maml_train_global(theta_global, model_global, grads, eta=eta)
             for i in range(len(local_models)):
                 local_models[i].update_params(theta_global)
 
-        #loss, acc, mean_pool_acc = train_utils.maml_validate(e, resnet, model_global, val_loader)
-        loss, acc, mean_pool_acc = train_utils.maml_validate_all(e, resnet, model_global, val_loaders,device=device)
+        total_loss, acc, mean_pool_acc = train_utils.maml_validate_all(e, resnet, model_global, val_loaders, device=device)
         
-        if loss > previous_loss:
+        if total_loss > previous_loss:
             patience_count += 1
         else:
             patience_count = 0
-        previous_loss = loss
+        previous_loss = total_loss
         
-        if loss < best_loss or acc > best_acc or mean_pool_acc > best_acc:
-            torch.save(model_global.state_dict(), args.model_name)
-            best_loss = min(best_loss, loss)
-            best_acc = max(best_acc, acc, mean_pool_acc)
-
+        if args.save_best == 'loss':
+            if total_loss < best_loss:
+                torch.save(model_global.state_dict(), args.model_name)
+                print('--- WROTE MODEL ---')
+                best_loss = total_loss
+        elif args.save_best == 'acc':
+            if mean_pool_acc > best_acc:
+                torch.save(model_global.state_dict(), args.model_name)
+                print('--- WROTE MODEL ---')
+                best_acc = mean_pool_acc
+                
 if __name__ == "__main__":
     main()

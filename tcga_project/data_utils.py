@@ -235,7 +235,7 @@ def process_MSI_data():
 
 
 def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_path='COAD_WGD_TABLE.xls', 
-                     wgd_raw=None, split_in_two=False, print_overlap=False):
+                     wgd_raw=None, split_in_two=False, print_stats=False):
     # note: flexible across cancer types, e.g., coad vars can be for brca
     if wgd_path is not None:
         wgd_raw = pd.read_excel(wgd_path)
@@ -245,7 +245,7 @@ def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_
     coad_img = np.array([v[0:name_len] for v in coad_full_name])
     coad_both = np.intersect1d(coad_img, wgd_raw.index)        
         
-    if print_overlap:
+    if print_stats:
         if cancer_type[-1:] == 'x':
             num_labels = np.sum(wgd_raw['Type'].isin([cancer_type.split('_')[0]]))
         else:
@@ -283,6 +283,7 @@ def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_
 
 def load_COAD_train_val_sa_pickle(pickle_file='/n/tcga_models/resnet18_WGD_10x_sa.pkl', 
                                   return_all_cancers=False, split_in_two=False):
+    empty_sample = 'TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab'
     with open(pickle_file, 'rb') as f: 
         if return_all_cancers:
             if split_in_two:
@@ -293,7 +294,10 @@ def load_COAD_train_val_sa_pickle(pickle_file='/n/tcga_models/resnet18_WGD_10x_s
                 return batch_all, sa_trains1, sa_vals1
         else:
             sa_train, sa_val = pickle.load(f)
-            del sa_train['TCGA-A6-2675-01Z-00-DX1.d37847d6-c17f-44b9-b90a-84cd1946c8ab']
+            if empty_sample in list(sa_train.keys()):
+                del sa_train[empty_sample]
+            elif empty_sample in list(sa_val.keys()):
+                del sa_val[empty_sample]
             return sa_train, sa_val
     
     
