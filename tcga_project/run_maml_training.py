@@ -115,10 +115,11 @@ def main():
     for p in model_global.parameters():
         theta_global.append(torch.randn(list(p.shape)).cuda())
 
-    model_global.linear1.weight = torch.nn.Parameter(theta_global[0])
-    model_global.linear1.bias = torch.nn.Parameter(theta_global[1])
-    model_global.linear2.weight = torch.nn.Parameter(theta_global[2])
-    model_global.linear2.bias = torch.nn.Parameter(theta_global[3])
+    model_global.update_params(theta_global)
+    #model_global.linear1.weight = torch.nn.Parameter(theta_global[0])
+    #model_global.linear1.bias = torch.nn.Parameter(theta_global[1])
+    #model_global.linear2.weight = torch.nn.Parameter(theta_global[2])
+    #model_global.linear2.bias = torch.nn.Parameter(theta_global[3])
 
     # initialize local models, set theta_local = theta_global    
     local_models = []
