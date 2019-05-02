@@ -48,14 +48,14 @@ def main():
     # set the task
     # TODO: implement a general for table to perform predictions
     if args.Task.upper() == 'WGD-ALL':
-        pickle_file = '/home/sxchao/MSI_prediction/tcga_project/tcga_wgd_sa_all.pkl'
+        pickle_file = '/n/tcga_wgd_sa_all_1.0.pkl'
         batch_all, sa_trains, sa_vals, _, _ = data_utils.load_COAD_train_val_sa_pickle(pickle_file=pickle_file,
                                                                                        return_all_cancers=True,
-                                                                                       split_in_two=True)
+                                                                                       split_in_two=False)
         train_cancers = ['COAD', 'BRCA', 'READ_10x', 'LUSC_10x', 'BLCA_10x', 'LUAD_10x', 'STAD_10x', 'HNSC_10x']
         train_idxs = [batch_all.index(cancer) for cancer in train_cancers]
         
-        val_cancers = ['UCEC', 'LIHC_10x', 'KIRC_10x']
+        val_cancers = ['COAD', 'BRCA', 'READ_10x', 'LUSC_10x', 'BLCA_10x', 'LUAD_10x', 'STAD_10x', 'HNSC_10x']
         val_idxs = [batch_all.index(cancer) for cancer in val_cancers]
         
         sa_train = {}
@@ -113,8 +113,8 @@ def main():
     batch_size = args.batch_size
     # current WeightedRandomSampler is too slow when replacement = False. 
     # TODO: implement switch to weighted loss or weighted sampler
-    sampler = torch.utils.data.sampler.WeightedRandomSampler(reciprocal_weights, len(reciprocal_weights), replacement=True)
-    train_loader = DataLoader(train_set, batch_size=batch_size, pin_memory=True, sampler=sampler, num_workers=args.n_workers)
+    #sampler = torch.utils.data.sampler.WeightedRandomSampler(reciprocal_weights, len(reciprocal_weights), replacement=True)
+    train_loader = DataLoader(train_set, batch_size=batch_size, pin_memory=True, shuffle=True, num_workers=args.n_workers)
     valid_loader = DataLoader(val_set, batch_size=batch_size, pin_memory=True, num_workers=args.n_workers)
     
     learning_rate = args.lr
