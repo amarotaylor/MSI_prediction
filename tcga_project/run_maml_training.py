@@ -74,7 +74,7 @@ def main():
         val_sets.append(val_set)
     
     # get DataLoaders    
-    train_loader = torch.utils.data.DataLoader(data_utils.ConcatDataset(*train_sets), 
+    train_loader = torch.utils.data.DataLoader(data_utils.MergedDataset(*train_sets), 
                                            batch_size=args.batch_size_train, 
                                            shuffle=True, 
                                            num_workers=args.n_workers, 
@@ -94,7 +94,7 @@ def main():
     
     # model args
     state_dict_file = '/n/tcga_models/resnet18_WGD_all_10x.pt'
-    state_dict_file_maml = '/n/tcga_models/maml_WGD_10x_v02a.pt'
+    state_dict_file_maml = '/n/tcga_models/maml_WGD_10x_v03a.pt'
     input_size = 2048
     hidden_size = 512
     output_size = 1
