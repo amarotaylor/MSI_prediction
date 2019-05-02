@@ -238,7 +238,7 @@ def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_
                      wgd_raw=None, split_in_two=False, print_stats=False):
     # note: flexible across cancer types, e.g., coad vars can be for brca
     if wgd_path is not None:
-        wgd_raw = pd.read_excel(wgd_path)
+        wgd_raw = pd.read_excel(wgd_path,index_col='Sample')
     sample_name = wgd_raw.index[0]
     name_len = len(sample_name)
     coad_full_name = os.listdir(root_dir + cancer_type)
@@ -458,3 +458,31 @@ class ConcatDataset(torch.utils.data.Dataset):
         else:
             return torch.stack([d[i][0] for d in self.datasets]), torch.cat([torch.tensor(d[i][1]).view(-1) \
                                                                              for d in self.datasets])
+        
+        
+class MergedDataset(torch.utils.data.Dataset):
+    def __init__(self, *datasets, return_jpg_to_sample=False):
+        self.datasets = datasets
+        self.all_jpgs = [d.all_jpegs for d in datasets]
+        self.return_jpg_to_sample = return_jpg_to_sample
+        self.jpg_to_sample = [d.jpg_to_sample for d in datasets]
+        self.labels = [d.all_labels for d in datasets]
+        self.transform = datasets[0].transform
+        self.loader = datasets[0].loader
+    def make_image(self,image):
+        image = self.loader(image)
+        image = self.transform(image)
+        if image.shape[1] < 256 or image.shape[2] < 256:
+                image = pad_tensor_up_to(image,256,256,channels_last=False)
+        return image
+    def __len__(self):
+        return min(len(d) for d in self.datasets)
+    
+    def __getitem__(self, i):
+        if self.return_jpg_to_sample:
+            return torch.stack([self.make_image(jpegs[i]) for jpegs in self.all_jpgs]), \
+        torch.cat([torch.tensor(labels[i]).view(-1) for labels in self.labels]), \
+        torch.stack([torch.tensor([c, jpg_to_sample[i]]) for c,jpg_to_sample in enumerate(self.jpg_to_sample)])
+        else:
+            return torch.stack([self.make_image(jpegs[i]) for jpegs in self.all_jpgs]), \
+        torch.cat([torch.tensor(labels[i]).view(-1) for labels in self.labels])
