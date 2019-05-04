@@ -49,7 +49,7 @@ def main():
     # TODO: implement a general for table to perform predictions
     if args.Task.upper() == 'WGD-ALL':
         pickle_file = '/n/tcga_wgd_sa_all_1.0.pkl'
-        batch_all, sa_trains, sa_vals, _, _ = data_utils.load_COAD_train_val_sa_pickle(pickle_file=pickle_file,
+        batch_all, sa_trains, sa_vals = data_utils.load_COAD_train_val_sa_pickle(pickle_file=pickle_file,
                                                                                        return_all_cancers=True,
                                                                                        split_in_two=False)
         train_cancers = ['COAD', 'BRCA', 'READ_10x', 'LUSC_10x', 'BLCA_10x', 'LUAD_10x', 'STAD_10x', 'HNSC_10x']
@@ -149,9 +149,13 @@ def main():
         if val_loss < best_loss:
             torch.save(resnet.state_dict(), args.model_name)
             best_loss = val_loss
+            best_acc = val_acc
+            print('WROTE MODEL')
         elif val_acc > best_acc:
             torch.save(resnet.state_dict(), args.model_name)
             best_acc = val_acc
+            best_loss = val_loss
+            print('WROTE MODEL')
 
 if __name__ == "__main__":
     main()
