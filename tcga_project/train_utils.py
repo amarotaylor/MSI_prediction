@@ -426,3 +426,65 @@ def maml_validate_all(e, resnet, model_global, val_loaders, device=torch.device(
     print('------ Slide-Level Acc (Mean-Pooling): {0:0.4f}, By Label: {1}'.format(mean_pool_acc, slide_acc_by_label))
     print('------ Slide-Level Acc (Max-Pooling): {0:0.4f}, By Label: {1}'.format(max_pool_acc, slide_acc_by_mlabel))
     return total_loss, acc, mean_pool_acc
+
+
+
+def validation_loop_for_random_sampler(e,val_loader,device,criterion,resnet):
+    pred_batch = []
+    true_label = []
+    torch.cuda.empty_cache()
+    loss = torch.tensor(0.0,device=device)
+    with torch.no_grad():
+        for step,(slide, label, coords) in enumerate(val_loader):
+            slide,label = slide.squeeze(0).cuda(device),label.cuda(device)
+            logits,_ = resnet(slide)
+            loss += criterion(logits,label.float())
+            pred_batch.append(torch.sigmoid(logits).detach().cpu().numpy()>0.5)
+            true_label.append(label.detach().cpu().numpy())
+            
+            del slide,label,logits,_
+            torch.cuda.empty_cache()
+    #scheduler.step(loss)
+    pred_batch = np.array(pred_batch)
+    true_label = np.array(true_label)
+    acc = np.mean(pred_batch==true_label)
+    acc_1 = np.mean(pred_batch[true_label==1])
+    acc_0 = np.mean(1-pred_batch[true_label==0])
+    loss = loss.detach().cpu().numpy()
+    
+    print('Epoch: {0}, Val Mean NLL: {1:0.4f}, Val Accuracy: {2:0.2f} \
+           Class Accuracy: WGD = {3:0.2f}, Diploid = {4:0.2f}'\
+              .format(e,loss/step,acc,acc_1,acc_0))
+    return loss,acc
+    
+    
+def training_loop_random_sampling(e,train_loader,device,criterion,resnet,optimizer,gradient_step_length=3,reporting_step_length=10):
+    grads = []
+    track_loss = torch.tensor(0.0,device=device)
+    for p in resnet.fc.parameters():
+        grads.append(torch.zeros_like(p.data,device=device))
+        
+    for step,(slide, label, coords) in enumerate(train_loader):
+        optimizer.zero_grad()
+        slide,label = slide.squeeze(0).cuda(device),label.cuda(device)
+        logits,_ = resnet(slide)
+        loss = criterion(logits,label.float())
+        loss.backward()
+      
+        for ix,p in enumerate(resnet.fc.parameters()):
+            grads[ix] += p.grad.detach().clone()
+            
+        track_loss += loss.detach().clone()    
+        optimizer.zero_grad()
+        if step%gradient_step_length ==0 and step>0:
+            for ix,p in enumerate(resnet.fc.parameters()):
+                p.grad.data = grads[ix]/gradient_step_length
+                grads[ix] = torch.zeros_like(p.data,device=device)
+            optimizer.step()
+            optimizer.zero_grad()
+                
+        if step%reporting_step_length == 0 and step>0:
+            print('Epoch: {0}, Step: {1}, Train NLL: {2:0.4f}'.format(e, step, track_loss.detach().cpu().numpy()/reporting_step_length))
+            track_loss = 0.0
+    del slide, label, loss, logits, _
+    torch.cuda.empty_cache()

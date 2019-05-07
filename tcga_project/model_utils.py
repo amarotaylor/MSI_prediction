@@ -36,3 +36,31 @@ class FeedForward(torch.nn.Module):
         #self.linear1.bias = torch.nn.Parameter(new_vals[1])
         #self.linear2.weight = torch.nn.Parameter(new_vals[2])
         #self.linear2.bias = torch.nn.Parameter(new_vals[3])
+        
+        
+        
+
+class Attention(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, gated=False):
+        super(Attention, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.gated = gated
+        self.V = nn.Linear(input_size, hidden_size)
+        if self.gated == True:
+            self.U = nn.Linear(input_size, hidden_size)
+        self.w = nn.Linear(hidden_size, output_size)
+        self.sigm = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+        self.sm = nn.Softmax(dim=0)
+        self.linear_layer = nn.Linear(input_size,1)
+        
+    def forward(self, h):
+        if self.gated == True:
+            a = self.sm(self.w(self.tanh(self.V(h)) * self.sigm(self.U(h))))
+        else:
+            a = self.sm(self.w(self.tanh(self.V(h))))
+        z = torch.sum(a*h,dim=0)
+        logits = self.linear_layer(z)
+        return logits,a
