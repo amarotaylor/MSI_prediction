@@ -429,7 +429,7 @@ def maml_validate_all(e, resnet, model_global, val_loaders, device=torch.device(
 
 
 
-def validation_loop_for_random_sampler(e,val_loader,device,criterion,resnet):
+def validation_loop_for_random_sampler(e,val_loader,device,criterion,resnet,scheduler=None):
     pred_batch = []
     true_label = []
     torch.cuda.empty_cache()
@@ -450,8 +450,9 @@ def validation_loop_for_random_sampler(e,val_loader,device,criterion,resnet):
     acc = np.mean(pred_batch==true_label)
     acc_1 = np.mean(pred_batch[true_label==1])
     acc_0 = np.mean(1-pred_batch[true_label==0])
+    if scheduler != None:
+        scheduler.step(loss)
     loss = loss.detach().cpu().numpy()
-    
     print('Epoch: {0}, Val Mean NLL: {1:0.4f}, Val Accuracy: {2:0.2f} \
            Class Accuracy: WGD = {3:0.2f}, Diploid = {4:0.2f}'\
               .format(e,loss/step,acc,acc_1,acc_0))

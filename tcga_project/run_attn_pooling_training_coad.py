@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--patience',help='Patience for lr scheduler', required=False, default=10, type=int)
     parser.add_argument('--model_name',help='Path to place saved model state', required=True, type=str)
     parser.add_argument('--batch_size',help='Batch size for training and validation loops',required=False, default=264, type=int)
-    parser.add_argument('--epochs',help='Epochs to run training and validation loops', required=False, default=50, type=int)
+    parser.add_argument('--epochs',help='Epochs to run training and validation loops', required=False, default=200, type=int)
     parser.add_argument('--magnification',help='Magnification level of tiles', required=False, default='10.0', type=str)
     args = parser.parse_args()
     
@@ -95,10 +95,12 @@ def main():
     best_loss = 1e8
     best_acc = 0.0
     criterion=nn.BCEWithLogitsLoss()
-    
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, patience=8, min_lr=1e-6)
     for e in range(args.epochs):
-        train_utils.training_loop_random_sampling(e,train_loader,device,criterion,resnet,optim,gradient_step_length=10,reporting_step_length=10)
-        val_loss,val_acc = train_utils.validation_loop_for_random_sampler(e,val_loader,device,criterion,resnet)
+        if e % 5 == 0:
+            print('---------- LR: {0:0.8f} ----------'.format(optim.state_dict()['param_groups'][0]['lr']))
+        train_utils.training_loop_random_sampling(e,train_loader,device,criterion,resnet,optim,gradient_step_length=5,reporting_step_length=10)
+        val_loss,val_acc = train_utils.validation_loop_for_random_sampler(e,val_loader,device,criterion,resnet,scheduler)
         if val_loss < best_loss:
             torch.save(resnet.state_dict(), args.model_name)
             best_loss = val_loss
