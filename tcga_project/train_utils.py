@@ -489,3 +489,61 @@ def training_loop_random_sampling(e,train_loader,device,criterion,resnet,optimiz
             track_loss = 0.0
     del slide, label, loss, logits, _
     torch.cuda.empty_cache()
+    
+    
+    
+    
+def training_loop_pooled_embeddings(e,step_size,optimizer,net,train_embeddings,train_jpgs_to_slide
+                                    ,train_labels,criterion,n_samples,sample_weight):
+    logits_vec = torch.zeros((step_size+1,1)).cuda()
+    labels_vec = torch.zeros_like(logits_vec).cuda()
+    batch_idx = 0
+    track_loss = 0    
+    idxs_train = np.linspace(0,n_samples,n_samples+1,dtype=int)
+    idexs = np.random.choice(idxs_train,size=n_samples.numpy(),p=sample_weight)
+    
+    for idx in idexs:
+        slide = train_embeddings[train_jpgs_to_slide==idx]
+        labels_vec[batch_idx] = train_labels[train_jpgs_to_slide==idx].unique().float().cuda()
+        logits_vec[batch_idx] = torch.mean(net(slide))
+        if batch_idx == step_size:
+            loss = criterion(logits_vec,labels_vec)
+            loss.backward()
+            track_loss += loss.detach().cpu()            
+            optimizer.step()
+            optimizer.zero_grad()
+            logits_vec = torch.zeros((step_size+1,1)).cuda()
+            labels_vec = torch.zeros_like(logits_vec).cuda()
+            batch_idx = 0
+        else:
+            batch_idx += 1
+        
+    loss = criterion(logits_vec,labels_vec)
+    loss.backward()
+    track_loss += loss.detach().cpu() * (batch_idx/step_size)
+    track_loss = track_loss * (float(step_size) / float(n_samples))
+    optimizer.step()
+    optimizer.zero_grad()
+    print('Epoch: {0}, Train NLL: {1:0.4f}'.format(e,track_loss.numpy()))
+    
+    
+def validation_loop_pooled_embeddings(e,scheduler,net,val_embeddings,val_jpgs_to_slide
+                                    ,val_labels,criterion,n_samples):
+    logits_vec = torch.zeros((n_samples+1,1)).cuda()
+    labels_vec = torch.zeros_like(logits_vec).cuda()
+    track_loss = 0
+    idexs = np.linspace(0,n_samples,n_samples+1,dtype=int)
+    with torch.no_grad():
+        for idx in idexs:
+            slide = val_embeddings[val_jpgs_to_slide==idx]
+            labels_vec[idx] = val_labels[val_jpgs_to_slide==idx].unique().float().cuda()
+            logits_vec[idx] = torch.mean(net(slide))
+        loss = criterion(logits_vec,labels_vec)
+        scheduler.step(loss)
+        mask = labels_vec.cpu().numpy() == (logits_vec>0.5).float().cpu().numpy()
+        acc = np.mean(mask)
+        acc_1 = np.mean(mask[labels_vec.cpu().numpy()==1.])
+        acc_0 = np.mean(mask[labels_vec.cpu().numpy()==0.])
+        print('Epoch: {0}, Validation NLL: {1:0.4f}, Total Acc: {2:0.3f}, Acc by label; diploid:{3:0.3f} WGD:{4:0.3f}'.format(e,loss.cpu().numpy(),acc,acc_0,acc_1))
+        return loss,acc
+            

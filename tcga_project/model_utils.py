@@ -56,11 +56,14 @@ class Attention(nn.Module):
         self.sm = nn.Softmax(dim=0)
         self.linear_layer = nn.Linear(input_size,1)
         
-    def forward(self, h):
+    def forward(self, h, return_attention=False):
         if self.gated == True:
             a = self.sm(self.w(self.tanh(self.V(h)) * self.sigm(self.U(h))))
         else:
             a = self.sm(self.w(self.tanh(self.V(h))))
         z = torch.sum(a*h,dim=0)
         logits = self.linear_layer(z)
-        return logits,a
+        if return_attention:
+            return logits,a
+        else:
+            return logits
