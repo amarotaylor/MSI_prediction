@@ -46,7 +46,7 @@ def main():
     input_size = 2048
     hidden_size = 512
     output_size = 1
-    state_dict_file = '/n/tcga_models/archive/resnet18_WGD_v03.pt'
+    state_dict_file = '/n/tcga_models/archive/resnet18_WGD_10x.pt'
     resnet = models.resnet18(pretrained=False)
     resnet.fc = nn.Linear(2048, output_size, bias=True)
     saved_state = torch.load(state_dict_file, map_location=lambda storage, loc: storage)
