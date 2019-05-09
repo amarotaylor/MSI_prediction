@@ -37,8 +37,6 @@ class FeedForward(torch.nn.Module):
         #self.linear2.weight = torch.nn.Parameter(new_vals[2])
         #self.linear2.bias = torch.nn.Parameter(new_vals[3])
         
-        
-        
 
 class Attention(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, gated=False):
@@ -67,3 +65,33 @@ class Attention(nn.Module):
             return logits,a
         else:
             return logits
+        
+        
+class Generator(torch.nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, dropout=0.0):
+        super(Generator, self).__init__()
+        self.d = nn.Dropout(dropout)
+        self.m = nn.ReLU()
+        self.linear1 = nn.Linear(input_size, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, output_size)
+        
+    def forward(self, inputs):
+        hidden = self.d(self.m(self.linear1(inputs)))
+        output = self.linear2(hidden)
+        return output
+
+    
+class Encoder(torch.nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, pool_fn, dropout=0.0):
+        super(Encoder, self).__init__()
+        self.d = nn.Dropout(dropout)
+        self.m = nn.ReLU()
+        self.linear1 = nn.Linear(input_size, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, output_size)
+        self.pool_fn = pool_fn
+        
+    def forward(self, inputs):
+        hidden = self.d(self.m(self.linear1(inputs)))
+        hidden = self.pool_fn(hidden)
+        output = self.linear2(hidden)
+        return output
