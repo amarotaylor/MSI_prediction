@@ -9,12 +9,12 @@ from torch.utils.data import Dataset
 import pickle
 
 
-COAD_IMG_DIR = '/n/data_labeled_histopathology_images/COAD/CRCHistoPhenotypes_2016_04_28/Classification/'
-COAD_TRAIN = '/n/data_labeled_histopathology_images/COAD/train.pkl'
-COAD_VALID = '/n/data_labeled_histopathology_images/COAD/valid.pkl'
-COAD_DEV = '/n/data_labeled_histopathology_images/COAD/dev.pkl'
-COAD_TEST = '/n/data_labeled_histopathology_images/COAD/test.pkl'
-COAD_DATASET = '/n/data_labeled_histopathology_images/COAD/dataset.pkl'
+COAD_IMG_DIR = '/n/data_labeled_histopathology_images_welling/COAD/CRCHistoPhenotypes_2016_04_28/Classification/'
+COAD_TRAIN = '/n/data_labeled_histopathology_images_welling/COAD/train.pkl'
+COAD_VALID = '/n/data_labeled_histopathology_images_welling/COAD/valid.pkl'
+COAD_DEV = '/n/data_labeled_histopathology_images_welling/COAD/dev.pkl'
+COAD_TEST = '/n/data_labeled_histopathology_images_welling/COAD/test.pkl'
+COAD_DATASET = '/n/data_labeled_histopathology_images_welling/COAD/dataset.pkl'
 
 
 def process_slide(current_img,imgs,i):
@@ -101,7 +101,9 @@ def draw_image_with_rationale(idx,valid,gen):
 
     ax.imshow(image)
     fig.set_dpi(150)
-    
+    plt.xticks([])
+    plt.yticks([])
+    return fig
     
 class COAD_dataset(Dataset):
     '''
@@ -136,3 +138,10 @@ class COAD_dataset(Dataset):
             return self.data[idx].view(-1,3,27,27),self.labels[idx],np.array(self.neighborhoods[idx])
         else:
             return self.data[idx].view(-1,3,27,27),self.labels[idx]
+        
+        
+        
+        
+        
+        
+        

@@ -232,14 +232,17 @@ def gumbel_softmax(logits, temperature, hard=False):
 def rationales_training_loop_GS(e, train_loader, gen, enc, pool_fn, lamb1, lamb2, xent, learning_rate, optimizer, temp):
     gen.train()
     enc.train()
-    
+    batch_size = 5
     rat_tiles = 0
     total_tiles = 0
     total_xeloss = 0
     total_omega = 0
-    
+    logits_vec = torch.zeros([batch_size+1,2])
+    labels_vec = torch.zeros(batch_size+1).long()
+    omega_vec = torch.zeros([batch_size+1,1])
+    batch_idx = 0
     for slide,label in train_loader:
-        slide,label = slide.squeeze(0).cuda(),label.cuda()
+        slide,labels_vec[batch_idx] = slide.squeeze(0).cuda(),label.cuda()
         
         # generate tile rationales
         preds = gen(slide)
@@ -251,24 +254,35 @@ def rationales_training_loop_GS(e, train_loader, gen, enc, pool_fn, lamb1, lamb2
         # predict class based on rationales
         output = enc(rationale)
         pool = pool_fn(output)
-        y_hat = enc.classification_layer(pool)
+        logits_vec[batch_idx] = enc.classification_layer(pool)
         
         # compute loss and regularization term
         znorm = torch.sum(sample[:,1])
         zdist = torch.sum(torch.abs(sample[:-1,1] - sample[1:,1]))
-        omega = ((lamb1 * znorm) + (lamb2 * zdist)) / sample.shape[0]
-        xeloss = xent(y_hat.unsqueeze(0), label)
-        loss = xeloss + omega
-        loss.backward()
-        optimizer.step()
-        
-        optimizer.zero_grad()
-        total_xeloss += xeloss.detach().cpu().numpy()
-        total_omega += omega.detach().cpu().numpy() 
-        
+        omega_vec[batch_idx] = ((lamb1 * znorm) + (lamb2 * zdist)) / sample.shape[0]
+        if batch_idx == batch_size:
+            xeloss = xent(logits_vec, labels_vec)
+            loss = xeloss + omega_vec.mean()
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            total_xeloss += (xeloss*batch_size).detach().cpu().numpy()
+            total_omega += omega_vec.sum().detach().cpu().numpy() 
+            logits_vec = torch.zeros([batch_size+1,2])
+            labels_vec = torch.zeros(batch_size+1).long()
+            omega_vec = torch.zeros([batch_size+1,1])
+            batch_idx = 0
+        else:
+            batch_idx += 1
         rat_tiles += znorm
         total_tiles += float(sample.shape[0])
-        
+    xeloss = xent(logits_vec, labels_vec)
+    loss = xeloss + omega_vec.mean()
+    loss.backward()
+    optimizer.step()
+    optimizer.zero_grad()
+    total_xeloss += (xeloss*batch_size).detach().cpu().numpy()
+    total_omega += omega_vec.sum().detach().cpu().numpy()     
     frac_tiles = rat_tiles / total_tiles
     print('Epoch: {0}, Train Loss: {1:04f}, Train Omega: {2:0.4f}, Fraction of Tiles: {3:0.4f}'.format(e, total_xeloss, 
                                                                                                       total_omega, frac_tiles))
@@ -289,24 +303,27 @@ def rationales_validation_loop_GS(e, valid_loader, gen, enc, pool_fn, xent, sche
 
         prez = gen(slide)
         z = torch.argmax(prez, dim=2).squeeze(0)
-        rationale = slide[z==1,:,:,:]
+        
         znorm = torch.sum(z.float())
+        if znorm == 0:
+            z[torch.argmax(prez[:,1])]= 1
+            rationale = slide[z==1,:,:,:]
+        elif znorm > 0:
+            rationale = slide[z==1,:,:,:]
+        output = enc(rationale)
+        pool = pool_fn(output)
+        y_hat = enc.classification_layer(pool)
 
-        if znorm > 0:
-            output = enc(rationale)
-            pool = pool_fn(output)
-            y_hat = enc.classification_layer(pool)
+        loss = xent(y_hat.unsqueeze(0), label)
+        total_loss += loss.detach().cpu().numpy()
 
-            loss = xent(y_hat.unsqueeze(0), label)
-            total_loss += loss.detach().cpu().numpy()
+        rat_tiles += znorm
+        total_tiles += float(z.shape[0])
 
-            rat_tiles += znorm
-            total_tiles += float(z.shape[0])
+        labels.extend(label.float().cpu().numpy())
+        preds.append(torch.argmax(y_hat).float().detach().cpu().numpy())
 
-            labels.extend(label.float().cpu().numpy())
-            preds.append(torch.argmax(y_hat).float().detach().cpu().numpy())
-
-    if e > 50:
+    if e > 80:
         scheduler.step(total_loss)
         
     acc = np.mean(np.array(labels) == np.array(preds))
