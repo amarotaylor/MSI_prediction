@@ -98,7 +98,7 @@ class TCGADataset_tiles(Dataset):
     """
 
     def __init__(self, sample_annotations, root_dir, transform=None, loader=default_loader, magnification='5.0', 
-                 batch_type='tile', tile_batch_size=800, all_cancers=False, cancer_type=None, return_jpg_to_sample=False):
+                 batch_type='tile', tile_batch_size=800, all_cancers=False, cancer_type=None, return_jpg_to_sample=False, return_coords = False):
         """
         Args:
             sample_annot (dict): dictionary of sample names and their respective labels.
@@ -114,6 +114,7 @@ class TCGADataset_tiles(Dataset):
         self.batch_type = batch_type   
         self.cancer_type = cancer_type
         self.return_jpg_to_sample = return_jpg_to_sample
+        self.return_coords = return_coords
         if all_cancers:
             self.img_dirs = [self.root_dir + self.cancer_type[idx] + '/' + sample_name + '.svs/' \
                             + sample_name + '_files/' + self.magnification for idx,sample_name in enumerate(self.sample_names)]
@@ -128,15 +129,17 @@ class TCGADataset_tiles(Dataset):
         self.tile_batch_size = tile_batch_size
         
         for idx,(im_dir,label,l) in enumerate(zip(self.img_dirs, self.sample_labels, self.jpegs)):
-            #sample_coords = []
+            sample_coords = []
             for jpeg in l:
+                byte_jpeg = bytearray(jpeg.encode())
                 self.all_jpegs.append(im_dir + '/' + jpeg)
                 self.all_labels.append(label)
                 self.jpg_to_sample.append(idx)
-                #x,y = jpeg[:-5].split('_') # 'X_Y.jpeg'
-                #x,y = int(x), int(y)
-                #sample_coords.append(torch.tensor([x,y]))
-            #self.coords.append(torch.stack(sample_coords))
+                x,y = byte_jpeg[:-5].split('_'.encode()) # 'X_Y.jpeg'
+                x,y = int(x), int(y)
+                sample_coords.append(torch.tensor([x,y]))
+            self.coords.append(torch.stack(sample_coords))    
+        self.all_coords = torch.cat(self.coords) 
         
     def __len__(self):
         if self.batch_type == 'tile':
@@ -151,8 +154,12 @@ class TCGADataset_tiles(Dataset):
                 image = self.transform(image)
             if image.shape[1] < 256 or image.shape[2] < 256:
                 image = pad_tensor_up_to(image,256,256,channels_last=False)
-            if self.return_jpg_to_sample:
-                return image, self.all_labels[idx], self.jpg_to_sample[idx]
+            if self.return_jpg_to_sample and self.return_coords:
+                return image, self.all_labels[idx], self.jpg_to_sample[idx], self.all_coords[idx]
+            elif self.return_jpg_to_sample:
+                return image, self.all_labels[idx],self.jpg_to_sample[idx]
+            elif self.return_coords:
+                return image, self.all_labels[idx], self.all_coords[idx]
             else:
                 return image, self.all_labels[idx]
         elif self.batch_type == 'slide':
@@ -234,7 +241,7 @@ def process_MSI_data():
     return sample_annotations_train, sample_annotations_val        
 
 
-def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_path='COAD_WGD_TABLE.xls', 
+def process_WGD_data(root_dir='/n/mounted-data-drive/', cancer_type='COAD', wgd_path='/home/amaro/MSI_prediction/tcga_project/misc/COAD_WGD_TABLE.xls', 
                      wgd_raw=None, split_in_two=False, print_stats=False):
     # note: flexible across cancer types, e.g., coad vars can be for brca
     if wgd_path is not None:
